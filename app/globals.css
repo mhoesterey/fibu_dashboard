@@ -982,6 +982,19 @@ h2 {
   min-width: 260px;
 }
 
+.brand-logo-wrap {
+  display: flex;
+  align-items: center;
+  width: 170px;
+  min-width: 170px;
+}
+
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .brand-mark {
   width: 46px;
   height: 46px;
@@ -998,7 +1011,7 @@ h2 {
 
 .brand strong {
   color: #063b37;
-  font-size: 1.18rem;
+  font-size: 1.05rem;
   letter-spacing: 0;
 }
 
@@ -1068,9 +1081,9 @@ h2 {
 
 .hsp-home-hero {
   position: relative;
-  grid-template-columns: minmax(420px, 0.95fr) minmax(420px, 1.05fr);
-  min-height: 590px;
-  padding: 58px 6.25vw 82px;
+  grid-template-columns: minmax(420px, 0.9fr) minmax(420px, 1.1fr);
+  min-height: 560px;
+  padding: 54px 6.25vw 78px;
   overflow: hidden;
   background:
     linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0.92) 41%, rgba(244, 249, 249, 0.5) 62%),
@@ -1094,10 +1107,10 @@ h2 {
 }
 
 .hsp-home-hero h1 {
-  max-width: 650px;
+  max-width: 680px;
   color: #101a31;
-  font-size: 4.15rem;
-  line-height: 1.08;
+  font-size: 3.55rem;
+  line-height: 1.1;
   font-weight: 900;
 }
 
@@ -1129,10 +1142,8 @@ h2 {
 }
 
 .hero-proof-list span::before {
-  content: "✓";
-  margin-right: 7px;
-  color: var(--teal-dark);
-  font-weight: 900;
+  display: none;
+  content: "";
 }
 
 .hero-media-card {
@@ -1143,6 +1154,57 @@ h2 {
   grid-template-rows: minmax(360px, 1fr) auto;
   gap: 16px;
   min-height: 480px;
+}
+
+.hero-media-card.control-board {
+  align-self: center;
+  grid-template-rows: 1fr auto;
+  min-height: 420px;
+}
+
+.control-panel {
+  display: grid;
+  align-content: start;
+  gap: 22px;
+  min-height: 338px;
+  padding: 30px;
+  border: 1px solid #dce8e6;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 22px 48px rgba(10, 23, 51, 0.1);
+}
+
+.control-panel .visual-header {
+  margin-bottom: 0;
+}
+
+.control-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.control-metrics div {
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid #dfe9e8;
+  border-radius: 8px;
+  background: #f8fbfb;
+}
+
+.control-metrics span {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.control-metrics strong {
+  color: var(--navy);
+  font-size: 1.85rem;
+  line-height: 1;
 }
 
 .hero-photo {
@@ -1528,6 +1590,11 @@ h2 {
   box-shadow: 0 18px 38px rgba(10, 23, 51, 0.07);
 }
 
+.mandate-lookup-card {
+  display: grid;
+  gap: 20px;
+}
+
 .form-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(210px, 0.45fr);
@@ -1541,6 +1608,19 @@ h2 {
   color: var(--navy);
   font-size: 1.55rem;
   line-height: 1.2;
+}
+
+.form-heading > p {
+  margin: 0;
+  color: #3a4d62;
+  line-height: 1.6;
+}
+
+.mandate-lookup-row label {
+  display: block;
+  margin-bottom: 8px;
+  color: #23344d;
+  font-weight: 800;
 }
 
 .form-progress {
@@ -1738,6 +1818,12 @@ h2 {
 
   .brand {
     min-width: 0;
+    gap: 10px;
+  }
+
+  .brand-logo-wrap {
+    width: 128px;
+    min-width: 128px;
   }
 
   .brand-mark {
@@ -1747,11 +1833,11 @@ h2 {
   }
 
   .brand strong {
-    font-size: 1rem;
+    font-size: 0.9rem;
   }
 
   .brand small {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
   }
 
   .main-nav {
@@ -1793,11 +1879,24 @@ h2 {
   }
 
   .hsp-home-hero h1 {
-    font-size: 2.5rem;
+    font-size: 2.35rem;
   }
 
   .hero-media-card {
     min-height: auto;
+  }
+
+  .hero-media-card.control-board {
+    min-height: auto;
+  }
+
+  .control-panel {
+    min-height: 0;
+    padding: 20px;
+  }
+
+  .control-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hero-photo {
