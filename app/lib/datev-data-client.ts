@@ -1,10 +1,22 @@
 import { clients } from "./mock-data";
-import type { Client } from "./types";
+import type { AccountingProfile, Client, DataLoadSummary } from "./types";
+
+type RawRecord = Record<string, unknown>;
+
+const MASTER_DATA_CLIENTS_PATH = "/datevconnect/master-data/v1/clients";
+const ACCOUNTING_CLIENTS_PATH = "/datevconnect/accounting/v1/clients";
+const QS_RULE_VERSION = "QS-FiBu-2026.06";
 
 export interface DatevDataClient {
   readonly source: "mock" | "klardaten";
   listClients(params?: { top?: number; skip?: number }): Promise<Client[]>;
+  listFibuClients(options?: {
+    maxClients?: number;
+    includeBookingSequences?: boolean;
+    requireFiscalYear?: boolean;
+  }): Promise<Client[]>;
   getClient(mandatsnummer: string): Promise<Client | null>;
+  getLoadSummary(): DataLoadSummary | null;
 }
 
 export class MockDatevDataClient implements DatevDataClient {
@@ -16,8 +28,32 @@ export class MockDatevDataClient implements DatevDataClient {
     return clients.slice(skip, skip + top);
   }
 
+  async listFibuClients(
+    options: {
+      maxClients?: number;
+      includeBookingSequences?: boolean;
+      requireFiscalYear?: boolean;
+    } = {},
+  ) {
+    return clients.slice(0, options.maxClients ?? clients.length);
+  }
+
   async getClient(mandatsnummer: string) {
     return clients.find((client) => client.mandatsnummer === mandatsnummer) ?? null;
+  }
+
+  getLoadSummary(): DataLoadSummary {
+    return {
+      sourceLabel: "Mock-Datenquelle",
+      totalAccountingClients: clients.length,
+      totalMasterDataClients: clients.length,
+      activeAccountingClients: clients.length,
+      clientsWithFiscalYears: clients.length,
+      clientsWithBookingSequences: clients.length,
+      bookingSequenceMode: "dashboard",
+      excludedInactiveOrUnmatched: 0,
+      excludedWithoutFiscalYear: 0,
+    };
   }
 }
 
@@ -30,6 +66,12 @@ export class KlardatenGatewayClient implements DatevDataClient {
   private readonly timeoutMs: number;
   private readonly maxAttempts: number;
   private readonly retryBaseDelayMs: number;
+  private readonly maxAccountingClients: number;
+  private readonly sequenceLookbackYears: number;
+  private readonly concurrency: number;
+  private cachedClients: Client[] | null = null;
+  private cachedAt = 0;
+  private lastSummary: DataLoadSummary | null = null;
 
   constructor() {
     this.baseUrl =
@@ -42,28 +84,303 @@ export class KlardatenGatewayClient implements DatevDataClient {
       process.env.HTTP_RETRY_BASE_DELAY_MS,
       500,
     );
+    this.maxAccountingClients = toPositiveInt(
+      process.env.KLARDATEN_MAX_ACCOUNTING_CLIENTS,
+      1000,
+    );
+    this.sequenceLookbackYears = toPositiveInt(
+      process.env.KLARDATEN_SEQUENCE_LOOKBACK_YEARS,
+      4,
+    );
+    this.concurrency = toPositiveInt(process.env.KLARDATEN_FETCH_CONCURRENCY, 10);
   }
 
   async listClients(params: { top?: number; skip?: number } = {}) {
-    if (!this.accessToken || !this.clientInstanceId) {
-      throw new Error("Klardaten Gateway ist nicht konfiguriert.");
+    const skip = params.skip ?? 0;
+    const top = params.top ?? this.maxAccountingClients;
+    const fibuClients = await this.listFibuClients({
+      maxClients: this.maxAccountingClients,
+      includeBookingSequences: false,
+    });
+    return fibuClients.slice(skip, skip + top);
+  }
+
+  async listFibuClients(
+    options: {
+      maxClients?: number;
+      includeBookingSequences?: boolean;
+      requireFiscalYear?: boolean;
+    } = {},
+  ) {
+    this.assertConfigured();
+
+    const maxClients = options.maxClients ?? this.maxAccountingClients;
+    const includeBookingSequences = options.includeBookingSequences ?? false;
+    const requireFiscalYear = options.requireFiscalYear ?? includeBookingSequences;
+    const cacheTtlMs = toPositiveInt(process.env.KLARDATEN_CACHE_TTL_MS, 300000);
+    if (
+      !includeBookingSequences &&
+      this.cachedClients &&
+      Date.now() - this.cachedAt < cacheTtlMs
+    ) {
+      return this.cachedClients.slice(0, maxClients);
     }
 
-    const url = new URL("/datevconnect/master-data/v1/clients", this.baseUrl);
-    url.searchParams.set("top", String(params.top ?? 50));
-    if (params.skip) url.searchParams.set("skip", String(params.skip));
+    const [accountingRows, masterRows] = await Promise.all([
+      this.listRowsPaged(ACCOUNTING_CLIENTS_PATH, {
+        pageSize: 1000,
+        maxRows: maxClients,
+      }),
+      this.listRowsPaged(MASTER_DATA_CLIENTS_PATH, {
+        pageSize: 1000,
+        maxRows: Math.max(1500, maxClients),
+      }),
+    ]);
 
-    const payload = await this.requestJson(url);
-    return normalizeClientList(payload);
+    const masterIndex = createMasterIndex(masterRows);
+    const activeAccountingRows = accountingRows
+      .map((accounting) => ({
+        accounting,
+        master: findMatchingMasterRecord(accounting, masterIndex),
+      }))
+      .filter(({ master }) => isActiveMasterRecord(master));
+
+    const enriched = await mapWithConcurrency(
+      activeAccountingRows,
+      this.concurrency,
+      ({ accounting, master }) =>
+        this.toBookableClient(accounting, master, {
+          includeBookingSequences,
+          requireFiscalYear,
+        }),
+    );
+    const filteredClients = enriched.filter(isPresent);
+
+    this.lastSummary = {
+      sourceLabel: getKlardatenSourceLabel(),
+      totalAccountingClients: accountingRows.length,
+      totalMasterDataClients: masterRows.length,
+      activeAccountingClients: activeAccountingRows.length,
+      clientsWithFiscalYears: filteredClients.filter(
+        (client) => Boolean(client.accountingProfile?.latestFiscalYear),
+      ).length,
+      clientsWithBookingSequences: filteredClients.filter(
+        (client) => client.accountingProfile?.bookingDataStatus === "sequence",
+      ).length,
+      bookingSequenceMode: includeBookingSequences ? "dashboard" : "detail_only",
+      excludedInactiveOrUnmatched:
+        accountingRows.length - activeAccountingRows.length,
+      excludedWithoutFiscalYear: requireFiscalYear
+        ? activeAccountingRows.length - filteredClients.length
+        : 0,
+    };
+
+    if (!includeBookingSequences) {
+      this.cachedClients = filteredClients;
+      this.cachedAt = Date.now();
+    }
+    return filteredClients;
   }
 
   async getClient(mandatsnummer: string) {
-    const list = await listAllClients(this, { pageSize: 100, maxClients: 1000 });
-    return list.find((client) => client.mandatsnummer === mandatsnummer) ?? null;
+    const list = await this.listFibuClients({
+      maxClients: this.maxAccountingClients,
+      includeBookingSequences: false,
+    });
+    const normalizedInput = normalizeLookupValue(mandatsnummer);
+    const client =
+      list.find(
+        (entry) =>
+          entry.mandatsnummer === mandatsnummer ||
+          normalizeLookupValue(entry.mandatsnummer) === normalizedInput,
+      ) ?? null;
+
+    return client ? this.enrichClientWithBookingSequence(client) : null;
   }
 
-  private async requestJson(url: URL) {
+  getLoadSummary() {
+    return this.lastSummary;
+  }
+
+  private async toBookableClient(
+    accountingRecord: RawRecord,
+    masterRecord: RawRecord | null,
+    options: { includeBookingSequences: boolean; requireFiscalYear: boolean },
+  ): Promise<Client | null> {
+    if (!masterRecord) return null;
+
+    const accountingClientId = stringValue(accountingRecord.id);
+    const masterDataClientId = stringValue(masterRecord.id);
+    if (!accountingClientId || !masterDataClientId) return null;
+
+    let sortedFiscalYears: RawRecord[] = [];
+    let selectedFiscalYear: RawRecord | null = null;
+    let latestSequence: RawRecord | null = null;
+
+    if (options.requireFiscalYear || options.includeBookingSequences) {
+      let fiscalYears: RawRecord[];
+      try {
+        fiscalYears = await this.requestRows(
+          `${ACCOUNTING_CLIENTS_PATH}/${encodeURIComponent(
+            accountingClientId,
+          )}/fiscal-years`,
+          { top: options.includeBookingSequences ? 20 : 1 },
+        );
+      } catch {
+        return null;
+      }
+
+      if (fiscalYears.length === 0) return null;
+      sortedFiscalYears = [...fiscalYears].sort(compareFiscalYearsDesc);
+      selectedFiscalYear = sortedFiscalYears[0];
+    }
+
+    if (options.includeBookingSequences && selectedFiscalYear) {
+      const sequenceLookup = await this.findLatestBookingSequence(
+        accountingClientId,
+        sortedFiscalYears,
+      );
+      if (sequenceLookup) {
+        selectedFiscalYear = sequenceLookup.fiscalYear;
+        latestSequence = sequenceLookup.sequence;
+      }
+    }
+
+    const mandatsnummer =
+      stringValue(masterRecord.number) ?? stringValue(accountingRecord.number);
+    if (!mandatsnummer) return null;
+
+    const profile = buildAccountingProfile({
+      accountingClientId,
+      masterDataClientId,
+      selectedFiscalYear,
+      latestSequence,
+    });
+
+    return {
+      id: accountingClientId,
+      mandatsnummer,
+      mandantenname:
+        stringValue(accountingRecord.name) ??
+        stringValue(masterRecord.name) ??
+        "Unbenanntes FiBu-Mandat",
+      zeitraum: getAccountingPeriodLabel(profile),
+      verantwortlicherMitarbeiter:
+        stringValue(masterRecord.accountant) ??
+        stringValue(masterRecord.responsible_employee) ??
+        stringValue(masterRecord.responsibleEmployee) ??
+        stringValue(masterRecord.employee) ??
+        "nicht aus API geliefert",
+      datenstand: getAccountingDataStatus(profile),
+      qsRegelversion: QS_RULE_VERSION,
+      authorizedUsers: [],
+      accountingProfile: profile,
+    };
+  }
+
+  private async enrichClientWithBookingSequence(client: Client) {
+    const profile = client.accountingProfile;
+    if (!profile) return client;
+
+    const fiscalYears = await this.requestRowsOrEmpty(
+      `${ACCOUNTING_CLIENTS_PATH}/${encodeURIComponent(
+        profile.accountingClientId,
+      )}/fiscal-years`,
+      { top: 20 },
+    );
+    if (fiscalYears.length === 0) return null;
+
+    const sortedFiscalYears = [...fiscalYears].sort(compareFiscalYearsDesc);
+    const sequenceLookup = await this.findLatestBookingSequence(
+      profile.accountingClientId,
+      sortedFiscalYears,
+    );
+
+    const enrichedProfile = buildAccountingProfile({
+      accountingClientId: profile.accountingClientId,
+      masterDataClientId: profile.masterDataClientId,
+      selectedFiscalYear: sequenceLookup?.fiscalYear ?? sortedFiscalYears[0],
+      latestSequence: sequenceLookup?.sequence ?? null,
+    });
+
+    return {
+      ...client,
+      zeitraum: getAccountingPeriodLabel(enrichedProfile),
+      datenstand: getAccountingDataStatus(enrichedProfile),
+      accountingProfile: enrichedProfile,
+    };
+  }
+
+  private async findLatestBookingSequence(
+    accountingClientId: string,
+    sortedFiscalYears: RawRecord[],
+  ) {
+    for (const fiscalYear of sortedFiscalYears.slice(0, this.sequenceLookbackYears)) {
+      const fiscalYearId = stringValue(fiscalYear.id);
+      if (!fiscalYearId) continue;
+
+      const sequences = await this.requestRowsOrEmpty(
+        `${ACCOUNTING_CLIENTS_PATH}/${encodeURIComponent(
+          accountingClientId,
+        )}/fiscal-years/${encodeURIComponent(
+          fiscalYearId,
+        )}/accounting-sequences-processed`,
+        { top: 50 },
+      );
+
+      if (sequences.length > 0) {
+        return { fiscalYear, sequence: pickLatestSequence(sequences) };
+      }
+    }
+
+    return null;
+  }
+
+  private async listRowsPaged(
+    path: string,
+    options: { pageSize: number; maxRows: number },
+  ) {
+    const rows: RawRecord[] = [];
+
+    for (let skip = 0; skip < options.maxRows; skip += options.pageSize) {
+      const page = await this.requestRows(path, {
+        top: options.pageSize,
+        skip,
+      });
+      rows.push(...page);
+      if (page.length < options.pageSize) break;
+    }
+
+    return rows.slice(0, options.maxRows);
+  }
+
+  private async requestRows(
+    path: string,
+    query: Record<string, string | number | undefined> = {},
+  ) {
+    return normalizeRows(await this.requestJson(path, query));
+  }
+
+  private async requestRowsOrEmpty(
+    path: string,
+    query: Record<string, string | number | undefined> = {},
+  ) {
+    try {
+      return await this.requestRows(path, query);
+    } catch {
+      return [];
+    }
+  }
+
+  private async requestJson(
+    path: string,
+    query: Record<string, string | number | undefined> = {},
+  ) {
     let lastError: Error | null = null;
+    const url = new URL(path, this.baseUrl);
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) url.searchParams.set(key, String(value));
+    }
 
     for (let attempt = 1; attempt <= this.maxAttempts; attempt += 1) {
       const controller = new AbortController();
@@ -104,6 +421,12 @@ export class KlardatenGatewayClient implements DatevDataClient {
 
     throw lastError ?? new Error("Klardaten Gateway ist nicht erreichbar.");
   }
+
+  private assertConfigured() {
+    if (!this.accessToken || !this.clientInstanceId) {
+      throw new Error("Klardaten Gateway ist nicht konfiguriert.");
+    }
+  }
 }
 
 export function getDatevDataClient(): DatevDataClient {
@@ -124,85 +447,267 @@ export async function listAllClients(
   client: DatevDataClient,
   options: { pageSize?: number; maxClients?: number } = {},
 ) {
-  const pageSize = options.pageSize ?? 100;
-  const maxClients = options.maxClients ?? 1000;
-  const allClients: Client[] = [];
-
-  for (let skip = 0; skip < maxClients; skip += pageSize) {
-    const page = await client.listClients({ top: pageSize, skip });
-    allClients.push(...page);
-
-    if (page.length < pageSize) break;
-  }
-
-  return allClients.slice(0, maxClients);
+  return client.listFibuClients({ maxClients: options.maxClients });
 }
 
-function normalizeClientList(payload: unknown): Client[] {
+export function getKlardatenSourceLabel() {
+  return "Klardaten Accounting Gateway (aktive FiBu)";
+}
+
+function buildAccountingProfile(input: {
+  accountingClientId: string;
+  masterDataClientId: string;
+  selectedFiscalYear: RawRecord | null;
+  latestSequence: RawRecord | null;
+}): AccountingProfile {
+  const fiscalYearId = input.selectedFiscalYear
+    ? stringValue(input.selectedFiscalYear.id)
+    : null;
+  const latestSequence = input.latestSequence;
+
+  return {
+    source: "klardaten-accounting",
+    accountingClientId: input.accountingClientId,
+    masterDataClientId: input.masterDataClientId,
+    isActive: true,
+    latestFiscalYear: fiscalYearId
+      ? {
+          id: fiscalYearId,
+          begin: dateStringValue(input.selectedFiscalYear?.begin),
+          end: dateStringValue(input.selectedFiscalYear?.end),
+          isLocked: booleanValue(input.selectedFiscalYear?.is_locked),
+        }
+      : undefined,
+    latestSequence: latestSequence
+      ? {
+          id:
+            stringValue(latestSequence.id) ??
+            stringValue(latestSequence.accounting_sequence_id) ??
+            "unknown",
+          dateFrom: dateStringValue(latestSequence.date_from),
+          dateTo: dateStringValue(latestSequence.date_to),
+          dateCommitted: dateStringValue(latestSequence.date_committed),
+          isCommitted: booleanValue(latestSequence.is_committed),
+          description: stringValue(latestSequence.description),
+        }
+      : undefined,
+    bookingDataStatus: latestSequence ? "sequence" : "fiscal_year",
+    dataQualityNote: latestSequence
+      ? "Letzter Buchungsbestand aus verarbeiteter Accounting-Sequenz ermittelt."
+      : fiscalYearId
+        ? "Aktives FiBu-Mandat mit Rechnungswesen-Wirtschaftsjahr; Buchungssequenz wird in der Einzelmandatsauswertung vertieft geprüft."
+        : "Aktives Accounting-Mandat; Wirtschaftsjahr und Buchungsbestand werden in der Einzelmandatsauswertung vertieft geprüft.",
+  };
+}
+
+function normalizeRows(payload: unknown): RawRecord[] {
   const rows = Array.isArray(payload)
     ? payload
     : Array.isArray((payload as { value?: unknown }).value)
-      ? ((payload as { value: unknown[] }).value)
+      ? (payload as { value: unknown[] }).value
       : Array.isArray((payload as { data?: unknown }).data)
-        ? ((payload as { data: unknown[] }).data)
+        ? (payload as { data: unknown[] }).data
         : Array.isArray((payload as { items?: unknown }).items)
-          ? ((payload as { items: unknown[] }).items)
-      : [];
+          ? (payload as { items: unknown[] }).items
+          : [];
 
-  return rows.map((row, index) => {
-    const record = row as Record<string, unknown>;
-    const rawId =
-      record.id ??
-      record.client_id ??
-      record.clientId ??
-      record.client_guid ??
-      record.guid;
-    const mandatsnummer = String(
-      record.number ??
-        record.client_number ??
-        record.clientNumber ??
-        record.client_no ??
-        record.clientNo ??
-        record.mandantennummer ??
-        record.mandatsnummer ??
-        rawId ??
-        `api-${index}`,
-    );
-    const name = String(
-      record.name ??
-        record.display_name ??
-        record.displayName ??
-        record.client_name ??
-        record.clientName ??
-        record.company_name ??
-        record.companyName ??
-        "Unbenanntes Mandat",
-    );
-
-    return {
-      id: String(rawId ?? mandatsnummer),
-      mandatsnummer,
-      mandantenname: name,
-      zeitraum: currentPeriodLabel(),
-      verantwortlicherMitarbeiter: String(
-        record.accountant ??
-          record.responsible_employee ??
-          record.responsibleEmployee ??
-          record.employee ??
-          "nicht aus API geliefert",
-      ),
-      datenstand: new Date().toISOString(),
-      qsRegelversion: "QS-FiBu-2026.06",
-      authorizedUsers: [],
-    };
-  });
+  return rows.filter(isRecord);
 }
 
-function currentPeriodLabel() {
-  return new Intl.DateTimeFormat("de-DE", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
+type MasterIndex = {
+  byId: Map<string, RawRecord>;
+  byNumber: Map<string, RawRecord>;
+  byUniqueSuffix: Map<string, RawRecord | null>;
+};
+
+function createMasterIndex(records: RawRecord[]): MasterIndex {
+  const byId = new Map<string, RawRecord>();
+  const byNumber = new Map<string, RawRecord>();
+  const byUniqueSuffix = new Map<string, RawRecord | null>();
+
+  for (const record of records) {
+    const id = stringValue(record.id);
+    if (id) byId.set(id, record);
+
+    const normalizedNumber = normalizeLookupValue(record.number);
+    if (normalizedNumber) byNumber.set(normalizedNumber, record);
+
+    const digits = digitsOnly(record.number);
+    for (const length of [4, 5, 6]) {
+      if (digits.length < length) continue;
+      const suffix = normalizeLookupValue(digits.slice(-length));
+      if (!suffix) continue;
+      const existing = byUniqueSuffix.get(suffix);
+      byUniqueSuffix.set(suffix, existing && existing !== record ? null : record);
+    }
+  }
+
+  return { byId, byNumber, byUniqueSuffix };
+}
+
+function findMatchingMasterRecord(
+  accountingRecord: RawRecord,
+  index: MasterIndex,
+) {
+  const id = stringValue(accountingRecord.id);
+  if (id && index.byId.has(id)) return index.byId.get(id) ?? null;
+
+  const normalizedNumber = normalizeLookupValue(accountingRecord.number);
+  if (normalizedNumber && index.byNumber.has(normalizedNumber)) {
+    return index.byNumber.get(normalizedNumber) ?? null;
+  }
+
+  const digits = digitsOnly(accountingRecord.number);
+  for (const length of [6, 5, 4]) {
+    if (digits.length < length) continue;
+    const suffix = normalizeLookupValue(digits.slice(-length));
+    const candidate = suffix ? index.byUniqueSuffix.get(suffix) : null;
+    if (candidate) return candidate;
+  }
+
+  return null;
+}
+
+function isActiveMasterRecord(record: RawRecord | null): record is RawRecord {
+  return record !== null && stringValue(record.status)?.toLowerCase() === "active";
+}
+
+function pickLatestSequence(sequences: RawRecord[]) {
+  return [...sequences].sort(compareSequencesDesc)[0] ?? null;
+}
+
+function compareFiscalYearsDesc(left: RawRecord, right: RawRecord) {
+  return (
+    dateRank(right.end) - dateRank(left.end) ||
+    dateRank(right.begin) - dateRank(left.begin)
+  );
+}
+
+function compareSequencesDesc(left: RawRecord, right: RawRecord) {
+  return (
+    dateRank(right.date_to) - dateRank(left.date_to) ||
+    dateRank(right.date_committed) - dateRank(left.date_committed) ||
+    dateRank(right.date_from) - dateRank(left.date_from)
+  );
+}
+
+function getAccountingPeriodLabel(profile: AccountingProfile) {
+  const sequence = profile.latestSequence;
+  if (sequence?.dateFrom || sequence?.dateTo) {
+    return formatDateRange(sequence.dateFrom, sequence.dateTo);
+  }
+
+  const fiscalYear = profile.latestFiscalYear;
+  return formatDateRange(fiscalYear?.begin ?? null, fiscalYear?.end ?? null);
+}
+
+function getAccountingDataStatus(profile: AccountingProfile) {
+  const sequence = profile.latestSequence;
+  if (sequence) {
+    const date =
+      sequence.dateTo ??
+      sequence.dateCommitted ??
+      profile.latestFiscalYear?.end ??
+      "kein Datum";
+    const committedLabel =
+      sequence.isCommitted === true
+        ? "festgeschriebene Buchungssequenz"
+        : "verarbeitete Buchungssequenz";
+    return `${date} - ${committedLabel}`;
+  }
+
+  const fiscalYearEnd = profile.latestFiscalYear?.end ?? "kein Sequenzdatum";
+  return `${fiscalYearEnd} - Wirtschaftsjahr vorhanden`;
+}
+
+function formatDateRange(from: string | null | undefined, to: string | null | undefined) {
+  if (from && to) return `${formatDate(from)} bis ${formatDate(to)}`;
+  if (to) return `bis ${formatDate(to)}`;
+  if (from) return `ab ${formatDate(from)}`;
+  return "Zeitraum aus API nicht geliefert";
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return new Intl.DateTimeFormat("de-DE").format(date);
+  }
+  return value;
+}
+
+function dateRank(value: unknown) {
+  const text = dateStringValue(value);
+  if (!text) return 0;
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+}
+
+function dateStringValue(value: unknown) {
+  const text = stringValue(value);
+  if (!text) return null;
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return text;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function booleanValue(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "ja"].includes(normalized)) return true;
+    if (["false", "0", "no", "nein"].includes(normalized)) return false;
+  }
+  return null;
+}
+
+function stringValue(value: unknown) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text.length > 0 ? text : null;
+}
+
+function digitsOnly(value: unknown) {
+  return stringValue(value)?.replace(/[^0-9]/g, "") ?? "";
+}
+
+function normalizeLookupValue(value: unknown) {
+  const text = stringValue(value);
+  if (!text) return "";
+
+  const digits = text.replace(/[^0-9]/g, "");
+  if (digits) return digits.replace(/^0+/, "") || "0";
+  return text.toLowerCase();
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+) {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  );
+  return results;
+}
+
+function isRecord(value: unknown): value is RawRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPresent<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
 }
 
 function toPositiveInt(value: string | undefined, fallback: number) {
@@ -216,7 +721,9 @@ function mapGatewayError(status: number) {
   if (status === 403) {
     return "Klardaten Gateway: Zugriff, Lizenz oder Instanz ist nicht freigegeben.";
   }
-  if (status === 404) return "Klardaten Gateway: Endpunkt oder Mandat nicht gefunden.";
+  if (status === 404) {
+    return "Klardaten Gateway: Endpunkt, Mandat oder Rechnungswesenbestand nicht gefunden.";
+  }
   if (status === 429) return "Klardaten Gateway: Rate Limit erreicht.";
   if (status >= 500) return `Klardaten Gateway: Serverfehler ${status}.`;
   return `Klardaten Gateway Fehler ${status}.`;

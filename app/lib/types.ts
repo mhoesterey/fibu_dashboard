@@ -29,6 +29,42 @@ export type Client = {
   datenstand: string;
   qsRegelversion: string;
   authorizedUsers: string[];
+  accountingProfile?: AccountingProfile;
+};
+
+export type AccountingProfile = {
+  source: "klardaten-accounting";
+  accountingClientId: string;
+  masterDataClientId: string;
+  isActive: true;
+  latestFiscalYear?: {
+    id: string;
+    begin: string | null;
+    end: string | null;
+    isLocked: boolean | null;
+  };
+  latestSequence?: {
+    id: string;
+    dateFrom: string | null;
+    dateTo: string | null;
+    dateCommitted: string | null;
+    isCommitted: boolean | null;
+    description: string | null;
+  };
+  bookingDataStatus: "sequence" | "fiscal_year";
+  dataQualityNote: string;
+};
+
+export type DataLoadSummary = {
+  sourceLabel: string;
+  totalAccountingClients: number;
+  totalMasterDataClients: number;
+  activeAccountingClients: number;
+  clientsWithFiscalYears: number;
+  clientsWithBookingSequences: number;
+  bookingSequenceMode: "detail_only" | "dashboard";
+  excludedInactiveOrUnmatched: number;
+  excludedWithoutFiscalYear: number;
 };
 
 export type QsCheck = {

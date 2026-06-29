@@ -39,6 +39,8 @@ export async function POST(request: Request) {
     const refreshRun = createRefreshRun(user.email, {
       source: data.source,
       checkedClients: data.metrics.checkedClients,
+      sourceLabel: data.sourceLabel,
+      logDetails: data.refreshLogDetails,
     });
     await recordRefreshRun(refreshRun);
     await recordAuditEvent({

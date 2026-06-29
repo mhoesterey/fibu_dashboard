@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         {
           valid: false,
           message:
-            "Diese Mandatsnummer ist unbekannt oder für Ihren Zugriff nicht freigegeben.",
+            "Diese Mandatsnummer ist kein aktives laufendes FiBu-Mandat mit abrufbarem Rechnungswesenbestand oder für Ihren Zugriff nicht freigegeben.",
         },
         { status: 404 },
       );
