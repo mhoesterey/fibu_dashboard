@@ -1359,6 +1359,348 @@ h2 {
   font-size: 2.25rem;
 }
 
+/* Mandatsanalyse page section */
+.mandate-analysis-section {
+  scroll-margin-top: 96px;
+  padding: 64px 6.25vw 74px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0.94) 48%, rgba(240, 247, 246, 0.72) 100%),
+    #f6fbfa;
+}
+
+.mandate-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+  gap: 42px;
+  align-items: end;
+  max-width: 1420px;
+  margin: 0 auto 38px;
+}
+
+.mandate-hero-copy {
+  max-width: 800px;
+}
+
+.mandate-hero-copy h2 {
+  max-width: 760px;
+  margin-bottom: 18px;
+  color: #101a31;
+  font-size: 3.05rem;
+  line-height: 1.12;
+  font-weight: 900;
+}
+
+.mandate-hero-copy p {
+  max-width: 720px;
+  margin-bottom: 26px;
+  color: #314054;
+  font-size: 1.08rem;
+  line-height: 1.82;
+}
+
+.mandate-hero-copy small {
+  display: block;
+  max-width: 560px;
+  margin-top: 16px;
+  color: #526575;
+  line-height: 1.55;
+}
+
+.mandate-hero-note {
+  display: grid;
+  gap: 12px;
+  padding: 26px;
+  border: 1px solid #d8e6e4;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgba(10, 23, 51, 0.06);
+}
+
+.mandate-hero-note strong {
+  color: #063b37;
+  font-size: 1.28rem;
+}
+
+.mandate-hero-note > span {
+  color: #33475c;
+  line-height: 1.6;
+}
+
+.trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.trust-badges span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid #d8e7e5;
+  border-radius: 8px;
+  background: #f6fbfa;
+  color: #2d4d54;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.mandate-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  max-width: 1420px;
+  margin: 0 auto 22px;
+}
+
+.mandate-benefits article,
+.mandate-process div {
+  border: 1px solid #dfe9e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mandate-benefits article {
+  min-height: 198px;
+  padding: 24px;
+}
+
+.mandate-benefits article > span,
+.mandate-process span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 34px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  background: #e6f2f0;
+  color: var(--teal-dark);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.mandate-benefits strong,
+.mandate-process strong {
+  display: block;
+  color: var(--navy);
+}
+
+.mandate-benefits strong {
+  margin-bottom: 10px;
+  font-size: 1.1rem;
+}
+
+.mandate-benefits p {
+  margin: 0;
+  color: #35485d;
+  line-height: 1.72;
+}
+
+.mandate-process {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 1420px;
+  margin: 0 auto 30px;
+}
+
+.mandate-process div {
+  min-height: 126px;
+  padding: 20px;
+}
+
+.mandate-process strong {
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.mandate-form-card {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 30px;
+  border: 1px solid #d7e5e3;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(10, 23, 51, 0.07);
+}
+
+.form-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 0.45fr);
+  gap: 24px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.form-heading h3 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.55rem;
+  line-height: 1.2;
+}
+
+.form-progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #e4eeee;
+}
+
+.form-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+  transition: width 180ms ease;
+}
+
+.step-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.step-tabs span {
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #dfe9e8;
+  border-radius: 8px;
+  background: #f8fbfb;
+  color: #536677;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.step-tabs span.active {
+  border-color: rgba(0, 124, 120, 0.45);
+  background: #eaf5f3;
+  color: var(--teal-dark);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.form-grid.one-column {
+  grid-template-columns: 1fr;
+}
+
+.form-grid label {
+  display: grid;
+  gap: 8px;
+  color: #24374e;
+  font-weight: 800;
+}
+
+.form-grid label > span {
+  line-height: 1.35;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid #c9d8d7;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #ffffff;
+  color: var(--navy);
+  font: inherit;
+}
+
+.form-grid select {
+  appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, #536677 50%) calc(100% - 18px) 21px / 7px 7px no-repeat,
+    linear-gradient(135deg, #536677 50%, transparent 50%) calc(100% - 12px) 21px / 7px 7px no-repeat,
+    #ffffff;
+}
+
+.form-grid textarea {
+  min-height: 156px;
+  padding: 14px;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.form-grid input:focus,
+.form-grid select:focus,
+.form-grid textarea:focus {
+  border-color: var(--teal);
+  outline: 3px solid rgba(0, 124, 120, 0.18);
+  outline-offset: 0;
+}
+
+.form-advice {
+  padding: 18px;
+  border: 1px solid #d8e7e5;
+  border-radius: 8px;
+  background: #f7fbfa;
+}
+
+.form-advice strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--navy);
+}
+
+.form-advice p {
+  margin: 0;
+  color: #3a4d62;
+  line-height: 1.65;
+}
+
+.checkbox-row {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  grid-column: 1 / -1;
+  font-weight: 650;
+}
+
+.checkbox-row input {
+  width: 20px;
+  min-height: 20px;
+  margin-top: 2px;
+  accent-color: var(--teal);
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.form-actions .primary-button,
+.form-actions .secondary-button {
+  min-width: 210px;
+}
+
+.form-message.success {
+  color: var(--green);
+}
+
+.action-band {
+  padding: 48px 6.25vw 58px;
+  background: #ffffff;
+}
+
+.action-band > .section-heading,
+.action-band > .action-list {
+  max-width: 1420px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
 @media (max-width: 1180px) {
   .topbar {
     grid-template-columns: 1fr;
@@ -1374,6 +1716,12 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .mandate-hero,
+  .mandate-benefits,
+  .mandate-process {
+    grid-template-columns: 1fr;
+  }
+
   .homepage-cards {
     margin-top: -44px;
   }
@@ -1381,15 +1729,62 @@ h2 {
 
 @media (max-width: 760px) {
   .topbar {
-    padding: 14px 20px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    align-items: center;
+    min-height: 0;
+    padding: 10px 16px;
   }
 
   .brand {
     min-width: 0;
   }
 
+  .brand-mark {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .brand strong {
+    font-size: 1rem;
+  }
+
+  .brand small {
+    font-size: 0.72rem;
+  }
+
   .main-nav {
-    gap: 18px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    gap: 14px;
+    justify-content: space-between;
+    width: 100%;
+    overflow: visible;
+    font-size: 0.86rem;
+  }
+
+  .main-nav a {
+    white-space: nowrap;
+  }
+
+  .topbar-actions {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 8px;
+    justify-content: flex-end;
+    overflow: visible;
+  }
+
+  .topbar-actions .icon-button,
+  .topbar-actions .login-button {
+    display: none;
+  }
+
+  .contact-button {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 0.84rem;
   }
 
   .hsp-home-hero {
@@ -1445,5 +1840,50 @@ h2 {
 
   .homepage-card p {
     grid-column: auto;
+  }
+
+  .mandate-analysis-section,
+  .action-band {
+    padding: 38px 20px;
+  }
+
+  .mandate-analysis-section {
+    scroll-margin-top: 118px;
+  }
+
+  .mandate-hero {
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  .mandate-hero-copy h2 {
+    font-size: 2.25rem;
+  }
+
+  .mandate-hero-copy p {
+    font-size: 1rem;
+  }
+
+  .mandate-hero-note,
+  .mandate-benefits article,
+  .mandate-process div,
+  .mandate-form-card {
+    padding: 20px;
+  }
+
+  .form-heading,
+  .form-grid,
+  .step-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions,
+  .form-actions .primary-button,
+  .form-actions .secondary-button {
+    width: 100%;
+  }
+
+  .step-tabs span {
+    min-height: 38px;
   }
 }
