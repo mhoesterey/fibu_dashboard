@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import { getStatusLabel } from "../lib/scoring";
 import type {
   ActionItem,
   DashboardMetrics,
@@ -9,7 +10,6 @@ import type {
   RefreshRun,
   WorkspaceUser,
 } from "../lib/types";
-import { getStatusLabel } from "../lib/scoring";
 
 type RefreshResponse = {
   refreshRun?: RefreshRun;
@@ -59,7 +59,9 @@ export function CockpitClient({
       const payload = (await response.json()) as RefreshResponse;
 
       if (!response.ok) {
-        setRefreshError(payload.error ?? "Dashboard konnte nicht aktualisiert werden.");
+        setRefreshError(
+          payload.error ?? "Dashboard konnte nicht aktualisiert werden.",
+        );
         if (payload.refreshRun) setRefreshRun(payload.refreshRun);
         return;
       }
@@ -124,31 +126,40 @@ export function CockpitClient({
       <header className="topbar">
         <Link className="brand" href="/" aria-label="HSP QS Cockpit Startseite">
           <span className="brand-mark" aria-hidden="true">
-            HSP
+            ◇
           </span>
           <span>
-            <strong>HSP QS Cockpit</strong>
-            <small>laufende FiBu</small>
+            <strong>HSP GRUPPE</strong>
+            <small>QS Cockpit laufende FiBu</small>
           </span>
         </Link>
         <nav className="main-nav" aria-label="Hauptnavigation">
-          <a href="#kennzahlen">Kennzahlen</a>
-          <a href="#mandatsanalyse">Mandatsanalyse</a>
-          <a href="#heatmap">Heatmap</a>
-          <a href="#handlungsbedarf">Handlungsbedarf</a>
+          <a href="#kennzahlen">Lösungen</a>
+          <a href="#mandatsanalyse">Mandate</a>
+          <a href="#heatmap">QS-Wissen</a>
+          <a href="#handlungsbedarf">Freigabe</a>
         </nav>
-        <div className="user-chip" aria-label="Angemeldeter Benutzer">
-          <span>{user.displayName}</span>
-          <small>Datenstand {metrics.lastDataStatus}</small>
+        <div className="topbar-actions">
+          <button className="icon-button" type="button" aria-label="Suche öffnen">
+            ⌕
+          </button>
+          <div className="login-button" aria-label="Angemeldeter Benutzer">
+            <span>{user.displayName}</span>
+          </div>
+          <a className="contact-button" href="#handlungsbedarf">
+            Handlungsbedarf
+          </a>
         </div>
       </header>
 
-      <section className="hero-band">
+      <section className="hero-band hsp-home-hero">
         <div className="hero-copy">
-          <p className="eyebrow">Interne Qualitätssicherung Finanzbuchhaltung</p>
+          <p className="eyebrow">Ihr Partner für digitale Kanzleiqualität</p>
           <h1>QS Cockpit laufende FiBu</h1>
           <p className="hero-subtitle">
             Qualität, Risiken und Handlungsbedarf je Mandat auf einen Blick.
+            Für klare Prozesse, sichere Freigaben und nachvollziehbare
+            Entscheidungen in der laufenden Finanzbuchhaltung.
           </p>
           <div className="hero-actions">
             <button
@@ -158,11 +169,18 @@ export function CockpitClient({
               disabled={isRefreshing}
             >
               <span aria-hidden="true">{isRefreshing ? "..." : "↻"}</span>
-              {isRefreshing ? "Dashboard wird aktualisiert" : "Dashboard aktualisieren"}
+              {isRefreshing
+                ? "Dashboard wird aktualisiert"
+                : "Dashboard aktualisieren"}
             </button>
             <a className="secondary-button" href="#mandatsanalyse">
-              Individuelle QS öffnen
+              Mandat auswerten
             </a>
+          </div>
+          <div className="hero-proof-list" aria-label="QS Schwerpunkte">
+            <span>Mandatsqualität</span>
+            <span>Risikofrüherkennung</span>
+            <span>Freigabeprozess</span>
           </div>
           <RefreshStatus
             refreshRun={refreshRun}
@@ -170,41 +188,102 @@ export function CockpitClient({
             isRefreshing={isRefreshing}
           />
         </div>
-        <div className="hero-visual" aria-label="QS-Verteilung">
-          <div className="visual-header">
-            <span>QS Status</span>
-            <strong>{metrics.averageScore}</strong>
+
+        <div className="hero-media-card" aria-label="QS Cockpit Visualisierung">
+          <div className="hero-photo">
+            <div className="workspace-scene" aria-hidden="true">
+              <span className="person person-a" />
+              <span className="person person-b" />
+              <span className="person person-c" />
+              <span className="laptop" />
+            </div>
+            <div className="floating-insight-card">
+              <span className="insight-icon" aria-hidden="true">
+                ✓
+              </span>
+              <div>
+                <strong>Effiziente QS-Prozesse</strong>
+                <p>Regeln, Evidenz und Empfehlungen zentral im Blick.</p>
+              </div>
+            </div>
           </div>
-          <div className="visual-score">
-            <div style={{ width: `${metrics.averageScore}%` }} />
-          </div>
-          <div className="visual-grid">
-            {heatmap.slice(0, 9).map((cell) => (
-              <span
-                key={cell.category}
-                className={`heat-dot ${cell.riskLevel}`}
-                title={`${cell.category}: ${cell.score}%`}
-              />
-            ))}
-          </div>
-          <div className="visual-alert">
-            <span>{criticalShare}%</span>
-            <p>kritische Mandate im aktuellen Lauf</p>
+          <div className="hero-score-strip">
+            <div>
+              <span>QS-Score</span>
+              <strong>{metrics.averageScore}%</strong>
+            </div>
+            <div>
+              <span>Kritisch</span>
+              <strong>{criticalShare}%</strong>
+            </div>
+            <div>
+              <span>Datenstand</span>
+              <strong>{metrics.lastDataStatus}</strong>
+            </div>
           </div>
         </div>
       </section>
 
+      <section className="homepage-cards" aria-label="Cockpit Bereiche">
+        <a className="homepage-card" href="#kennzahlen">
+          <span className="card-icon" aria-hidden="true">
+            ▦
+          </span>
+          <strong>QS-Kennzahlen</strong>
+          <p>Scores, kritische Mandate und nicht prüfbare Punkte sofort erkennen.</p>
+          <small>Öffnen</small>
+        </a>
+        <a className="homepage-card" href="#mandatsanalyse">
+          <span className="card-icon" aria-hidden="true">
+            ◎
+          </span>
+          <strong>Mandatsanalyse</strong>
+          <p>Einzelne Mandate gezielt aufrufen und vollständig auswerten.</p>
+          <small>Öffnen</small>
+        </a>
+        <a className="homepage-card" href="#heatmap">
+          <span className="card-icon" aria-hidden="true">
+            ▤
+          </span>
+          <strong>QS-Heatmap</strong>
+          <p>Risiken nach Kategorie scannen und Prioritäten ableiten.</p>
+          <small>Öffnen</small>
+        </a>
+        <a className="homepage-card" href="#handlungsbedarf">
+          <span className="card-icon" aria-hidden="true">
+            ↗
+          </span>
+          <strong>Freigabe & Maßnahmen</strong>
+          <p>Offene Punkte nach Schweregrad und Fälligkeit steuern.</p>
+          <small>Öffnen</small>
+        </a>
+      </section>
+
       <section className="dashboard-band" id="kennzahlen" aria-labelledby="kpi-title">
         <div className="section-heading">
-          <p className="eyebrow">Kennzahlen</p>
-          <h2 id="kpi-title">Aktueller QS-Überblick</h2>
+          <div>
+            <p className="eyebrow">Unser Anspruch</p>
+            <h2 id="kpi-title">Mehr Sicherheit für Kanzlei und Mandate</h2>
+          </div>
+          <p className="section-intro">
+            Das Cockpit verbindet Finanzbuchhaltungsdaten, QS-Regeln und
+            nachvollziehbare Evidenz zu einer kompakten Arbeitsoberfläche.
+          </p>
         </div>
         <div className="kpi-grid">
           <KpiCard label="geprüfte Mandate" value={metrics.checkedClients} />
-          <KpiCard label="durchschnittlicher QS-Score" value={`${metrics.averageScore}%`} tone="strong" />
+          <KpiCard
+            label="durchschnittlicher QS-Score"
+            value={`${metrics.averageScore}%`}
+            tone="strong"
+          />
           <KpiCard label="kritische Mandate" value={metrics.criticalClients} tone="danger" />
           <KpiCard label="offene Rückfragen" value={metrics.openQuestions} tone="warning" />
-          <KpiCard label="nicht prüfbare QS-Punkte" value={metrics.notCheckablePoints} tone="muted" />
+          <KpiCard
+            label="nicht prüfbare QS-Punkte"
+            value={metrics.notCheckablePoints}
+            tone="muted"
+          />
           <KpiCard label="letzter Datenstand" value={metrics.lastDataStatus} wide />
         </div>
       </section>
@@ -264,7 +343,9 @@ export function CockpitClient({
                 </span>
                 <strong>{item.clientName}</strong>
                 <span>{item.title}</span>
-                <small>{item.dueDate ? `fällig ${item.dueDate}` : item.ownerRole}</small>
+                <small>
+                  {item.dueDate ? `fällig ${item.dueDate}` : item.ownerRole}
+                </small>
               </Link>
             ))}
           </div>
@@ -273,8 +354,14 @@ export function CockpitClient({
 
       <section className="dashboard-band" id="heatmap" aria-labelledby="heatmap-title">
         <div className="section-heading">
-          <p className="eyebrow">QS-Heatmap</p>
-          <h2 id="heatmap-title">Risiko nach Kategorien</h2>
+          <div>
+            <p className="eyebrow">QS-Heatmap</p>
+            <h2 id="heatmap-title">Risiko nach Kategorien</h2>
+          </div>
+          <p className="section-intro">
+            Kategorieübergreifende Sicht auf erfüllte, auffällige, kritische
+            und nicht prüfbare QS-Punkte.
+          </p>
         </div>
         <div className="heatmap-table" role="table" aria-label="QS-Heatmap nach Kategorien">
           <div className="heatmap-head" role="row">
@@ -330,7 +417,11 @@ function RefreshStatus({
   isRefreshing: boolean;
 }) {
   if (isRefreshing) {
-    return <p className="refresh-note" role="status">Refresh läuft. Daten werden geladen und QS-Regeln neu berechnet.</p>;
+    return (
+      <p className="refresh-note" role="status">
+        Refresh läuft. Daten werden geladen und QS-Regeln neu berechnet.
+      </p>
+    );
   }
 
   if (refreshError) {
@@ -349,7 +440,11 @@ function RefreshStatus({
   }
 
   if (!refreshRun) {
-    return <p className="refresh-note">Zuletzt aktualisiert am 29.06.2026, 21:45 durch Systemimport.</p>;
+    return (
+      <p className="refresh-note">
+        Zuletzt aktualisiert am 29.06.2026, 21:45 durch Systemimport.
+      </p>
+    );
   }
 
   return (
