@@ -3,10 +3,10 @@ import Link from "next/link";
 import { ExportActions } from "./ExportActions";
 import { canAccessClient, requireWorkspaceUser } from "@/app/lib/authz";
 import { recordAuditEvent } from "@/app/lib/audit";
+import { loadClientByMandatsnummer } from "@/app/lib/dashboard-data";
 import {
   buildManagementSummary,
   calculateClientScore,
-  getClientByNumber,
   getMatrixForClient,
   getStatusLabel,
 } from "@/app/lib/scoring";
@@ -21,7 +21,7 @@ type DetailPageProps = {
 export default async function MandateDetailPage({ params }: DetailPageProps) {
   const { mandatsnummer } = await params;
   const user = await requireWorkspaceUser(`/mandat/${mandatsnummer}`);
-  const client = getClientByNumber(mandatsnummer);
+  const { client, sourceLabel } = await loadClientByMandatsnummer(mandatsnummer);
 
   if (!client || !canAccessClient(user, client)) {
     notFound();
@@ -32,7 +32,7 @@ export default async function MandateDetailPage({ params }: DetailPageProps) {
     action: "mandate_view",
     targetType: "client",
     targetRef: client.mandatsnummer,
-    metadata: { ruleVersion: client.qsRegelversion },
+    metadata: { ruleVersion: client.qsRegelversion, source: sourceLabel },
   });
 
   const score = calculateClientScore(client);
@@ -59,7 +59,7 @@ export default async function MandateDetailPage({ params }: DetailPageProps) {
         </nav>
         <div className="user-chip">
           <span>{user.displayName}</span>
-          <small>{client.datenstand}</small>
+          <small>{sourceLabel} · {client.datenstand}</small>
         </div>
       </header>
 

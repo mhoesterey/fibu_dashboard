@@ -32,8 +32,11 @@ export function getStatusLabel(status: QsStatus) {
   return statusLabel[status];
 }
 
-export function getClientByNumber(mandatsnummer: string) {
-  return clients.find((client) => client.mandatsnummer === mandatsnummer);
+export function getClientByNumber(
+  mandatsnummer: string,
+  sourceClients: Client[] = clients,
+) {
+  return sourceClients.find((client) => client.mandatsnummer === mandatsnummer);
 }
 
 export function getResultsForClient(clientId: string) {
@@ -99,9 +102,9 @@ export function calculateClientScore(client: Client): ClientScore {
   };
 }
 
-export function getDashboardMetrics(): DashboardMetrics {
-  const scores = clients.map(calculateClientScore);
-  const allResults = clients.flatMap((client) => getMatrixForClient(client));
+export function getDashboardMetrics(sourceClients: Client[] = clients): DashboardMetrics {
+  const scores = sourceClients.map(calculateClientScore);
+  const allResults = sourceClients.flatMap((client) => getMatrixForClient(client));
   const averageScore =
     scores.length > 0
       ? Math.round(
@@ -110,7 +113,7 @@ export function getDashboardMetrics(): DashboardMetrics {
       : 0;
 
   return {
-    checkedClients: clients.length,
+    checkedClients: sourceClients.length,
     averageScore,
     criticalClients: scores.filter((score) => score.trafficLight === "red").length,
     openQuestions: allResults.filter((row) =>
@@ -119,16 +122,16 @@ export function getDashboardMetrics(): DashboardMetrics {
     notCheckablePoints: allResults.filter(
       (row) => row.result.status === "not_checkable",
     ).length,
-    lastDataStatus: getLatestDataStatus(),
+    lastDataStatus: getLatestDataStatus(sourceClients),
   };
 }
 
-export function getHeatmap(): HeatmapCell[] {
+export function getHeatmap(sourceClients: Client[] = clients): HeatmapCell[] {
   return qsChecks
     .map((check) => check.category)
     .filter((category, index, categories) => categories.indexOf(category) === index)
     .map((category) => {
-      const rows = clients.flatMap((client) =>
+      const rows = sourceClients.flatMap((client) =>
         getMatrixForClient(client).filter((row) => row.category === category),
       );
       const fulfilled = countStatus(rows.map((row) => row.result), "fulfilled");
@@ -159,11 +162,14 @@ export function getHeatmap(): HeatmapCell[] {
     });
 }
 
-export function getTopActionItems(limit = 8): ActionItem[] {
+export function getTopActionItems(
+  limit = 8,
+  sourceClients: Client[] = clients,
+): ActionItem[] {
   const priority = { critical: 0, warning: 1, not_checkable: 2, fulfilled: 3, not_applicable: 4 };
   const severityPriority: Record<Severity, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
 
-  return clients
+  return sourceClients
     .flatMap((client) =>
       getMatrixForClient(client)
         .filter((row) =>
@@ -195,10 +201,13 @@ export function getTopActionItems(limit = 8): ActionItem[] {
     .slice(0, limit);
 }
 
-export function getLatestDataStatus() {
-  return clients
+export function getLatestDataStatus(sourceClients: Client[] = clients) {
+  return (
+    sourceClients
     .map((client) => client.datenstand)
-    .sort((left, right) => right.localeCompare(left))[0];
+      .sort((left, right) => right.localeCompare(left))[0] ??
+    "keine Daten geladen"
+  );
 }
 
 export function buildManagementSummary(client: Client) {
@@ -234,6 +243,42 @@ export function createSimulatedRefreshRun(triggeredBy: string): RefreshRun {
       "QS-Regeln QS-FiBu-2026.06 neu berechnet",
       "KPI-Kacheln, Heatmap und Handlungsbedarf aktualisiert",
     ],
+  };
+}
+
+export function createRefreshRun(
+  triggeredBy: string,
+  input: {
+    source: "mock" | "klardaten";
+    checkedClients: number;
+    status?: "success" | "failed";
+    errorMessage?: string;
+  },
+): RefreshRun {
+  const sourceLabel =
+    input.source === "klardaten" ? "Klardaten Gateway" : "Mock-Datenquelle";
+  const status = input.status ?? "success";
+
+  return {
+    id: `refresh-${Date.now()}`,
+    startedAt: new Date().toISOString(),
+    finishedAt: new Date().toISOString(),
+    status,
+    triggeredBy,
+    errorMessage: input.errorMessage,
+    log:
+      status === "success"
+        ? [
+            "Workspace-Identität geprüft",
+            `${sourceLabel} geladen (${input.checkedClients} Mandate)`,
+            "QS-Regeln QS-FiBu-2026.06 neu berechnet",
+            "KPI-Kacheln, Heatmap und Handlungsbedarf aktualisiert",
+          ]
+        : [
+            "Workspace-Identität geprüft",
+            `${sourceLabel} konnte nicht vollständig geladen werden`,
+            input.errorMessage ?? "Unbekannter Fehler im QS-Regellauf",
+          ],
   };
 }
 

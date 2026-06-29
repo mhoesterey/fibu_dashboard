@@ -1,11 +1,7 @@
 import { requireWorkspaceUser, canAccessCockpit } from "@/app/lib/authz";
 import { recordAuditEvent, recordRefreshRun } from "@/app/lib/audit";
-import {
-  createSimulatedRefreshRun,
-  getDashboardMetrics,
-  getHeatmap,
-  getTopActionItems,
-} from "@/app/lib/scoring";
+import { loadDashboardData } from "@/app/lib/dashboard-data";
+import { createRefreshRun } from "@/app/lib/scoring";
 
 export const dynamic = "force-dynamic";
 
@@ -19,51 +15,71 @@ export async function POST(request: Request) {
   }
 
   const url = new URL(request.url);
-  await wait(900);
 
   if (url.searchParams.get("fail") === "1") {
-    const failedRun = {
-      ...createSimulatedRefreshRun(user.email),
-      status: "failed" as const,
-      errorMessage:
-        "Die simulierte Datenquelle hat keine vollständige Antwort geliefert.",
-      log: [
-        "Workspace-Identität geprüft",
-        "Mock-Datenquelle geladen",
-        "Fehler beim simulierten QS-Regellauf",
-      ],
-    };
+    const failedRun = createRefreshRun(user.email, {
+      source: "mock",
+      checkedClients: 0,
+      status: "failed",
+      errorMessage: "Der Test-Refresh wurde bewusst mit Fehler ausgelöst.",
+    });
     await recordRefreshRun(failedRun);
 
     return Response.json(
       {
-        error:
-          "Dashboard konnte nicht aktualisiert werden. Bitte Refresh-Log prüfen.",
+        error: "Dashboard konnte nicht aktualisiert werden. Bitte Refresh-Log prüfen.",
         refreshRun: failedRun,
       },
       { status: 500 },
     );
   }
 
-  const refreshRun = createSimulatedRefreshRun(user.email);
-  await recordRefreshRun(refreshRun);
-  await recordAuditEvent({
-    user,
-    action: "dashboard_refresh",
-    targetType: "dashboard",
-    metadata: { refreshRunId: refreshRun.id },
-  });
+  try {
+    const data = await loadDashboardData();
+    const refreshRun = createRefreshRun(user.email, {
+      source: data.source,
+      checkedClients: data.metrics.checkedClients,
+    });
+    await recordRefreshRun(refreshRun);
+    await recordAuditEvent({
+      user,
+      action: "dashboard_refresh",
+      targetType: "dashboard",
+      metadata: {
+        refreshRunId: refreshRun.id,
+        source: data.sourceLabel,
+        checkedClients: data.metrics.checkedClients,
+      },
+    });
 
-  return Response.json({
-    refreshRun,
-    updatedBy: user.displayName,
-    updatedAt: refreshRun.finishedAt,
-    metrics: getDashboardMetrics(),
-    heatmap: getHeatmap(),
-    topActionItems: getTopActionItems(),
-  });
-}
+    return Response.json({
+      refreshRun,
+      updatedBy: user.displayName,
+      updatedAt: refreshRun.finishedAt,
+      dataSource: data.sourceLabel,
+      metrics: data.metrics,
+      heatmap: data.heatmap,
+      topActionItems: data.topActionItems,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unerwarteter Fehler beim API-Refresh.";
+    const failedRun = createRefreshRun(user.email, {
+      source: "klardaten",
+      checkedClients: 0,
+      status: "failed",
+      errorMessage: message,
+    });
+    await recordRefreshRun(failedRun);
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+    return Response.json(
+      {
+        error: "Dashboard konnte nicht aus der API aktualisiert werden.",
+        refreshRun: failedRun,
+      },
+      { status: 502 },
+    );
+  }
 }

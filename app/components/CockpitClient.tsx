@@ -18,6 +18,7 @@ type RefreshResponse = {
   metrics?: DashboardMetrics;
   heatmap?: HeatmapCell[];
   topActionItems?: ActionItem[];
+  dataSource?: string;
   error?: string;
 };
 
@@ -26,6 +27,7 @@ type CockpitClientProps = {
   initialMetrics: DashboardMetrics;
   initialHeatmap: HeatmapCell[];
   initialActionItems: ActionItem[];
+  initialDataSource: string;
 };
 
 export function CockpitClient({
@@ -33,6 +35,7 @@ export function CockpitClient({
   initialMetrics,
   initialHeatmap,
   initialActionItems,
+  initialDataSource,
 }: CockpitClientProps) {
   const [metrics, setMetrics] = useState(initialMetrics);
   const [heatmap, setHeatmap] = useState(initialHeatmap);
@@ -40,6 +43,7 @@ export function CockpitClient({
   const [refreshRun, setRefreshRun] = useState<RefreshRun | null>(null);
   const [refreshError, setRefreshError] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dataSource, setDataSource] = useState(initialDataSource);
   const [mandatsnummer, setMandatsnummer] = useState("");
   const [mandateMessage, setMandateMessage] = useState("");
   const [isValidating, setIsValidating] = useState(false);
@@ -103,6 +107,7 @@ export function CockpitClient({
       if (payload.metrics) setMetrics(payload.metrics);
       if (payload.heatmap) setHeatmap(payload.heatmap);
       if (payload.topActionItems) setActionItems(payload.topActionItems);
+      if (payload.dataSource) setDataSource(payload.dataSource);
       if (payload.refreshRun) setRefreshRun(payload.refreshRun);
     } catch (error) {
       setRefreshError(
@@ -223,7 +228,7 @@ export function CockpitClient({
           <div className="hero-proof-list" aria-label="QS Schwerpunkte">
             <span>Nur interne Nutzung</span>
             <span>QS der laufenden FiBu</span>
-            <span>Report je Mandat</span>
+            <span>Datenquelle: {dataSource}</span>
           </div>
           <RefreshStatus
             refreshRun={refreshRun}
@@ -279,6 +284,10 @@ export function CockpitClient({
             <div>
               <span>Datenstand</span>
               <strong>{metrics.lastDataStatus}</strong>
+            </div>
+            <div>
+              <span>Quelle</span>
+              <strong>{dataSource}</strong>
             </div>
           </div>
         </div>

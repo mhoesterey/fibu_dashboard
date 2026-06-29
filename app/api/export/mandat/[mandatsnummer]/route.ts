@@ -1,8 +1,8 @@
 import { canAccessClient, requireWorkspaceUser } from "@/app/lib/authz";
+import { loadClientByMandatsnummer } from "@/app/lib/dashboard-data";
 import {
   buildManagementSummary,
   calculateClientScore,
-  getClientByNumber,
   getMatrixForClient,
   getStatusLabel,
 } from "@/app/lib/scoring";
@@ -16,7 +16,7 @@ type ExportRouteContext = {
 export async function GET(_request: Request, context: ExportRouteContext) {
   const { mandatsnummer } = await context.params;
   const user = await requireWorkspaceUser(`/mandat/${mandatsnummer}`);
-  const client = getClientByNumber(mandatsnummer);
+  const { client, sourceLabel } = await loadClientByMandatsnummer(mandatsnummer);
 
   if (!client || !canAccessClient(user, client)) {
     return Response.json({ error: "Mandat nicht gefunden." }, { status: 404 });
@@ -29,6 +29,7 @@ export async function GET(_request: Request, context: ExportRouteContext) {
     "",
     `Zeitraum: ${client.zeitraum}`,
     `Datenstand: ${client.datenstand}`,
+    `Datenquelle: ${sourceLabel}`,
     `QS-Regelversion: ${client.qsRegelversion}`,
     `Gesamtscore: ${score.score}/100`,
     `Ampelstatus: ${score.trafficLight}`,
