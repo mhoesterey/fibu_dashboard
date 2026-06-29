@@ -14,6 +14,18 @@ import type {
   TrafficLight,
 } from "./types";
 
+type ApiResultInput = {
+  checkId: string;
+  status: QsStatus;
+  severity: Severity;
+  finding: string;
+  evidence: string;
+  recommendation: string;
+  ownerRole: string;
+  calculatedAt: string;
+  dueDate?: string | null;
+};
+
 const severityWeight: Record<Severity, number> = {
   P0: 5,
   P1: 3,
@@ -45,9 +57,9 @@ export function getResultsForClientId(clientId: string) {
 }
 
 export function getMatrixForClient(client: Client): QsMatrixRow[] {
-  const results = getResultsForClientId(client.id);
-  const apiDerivedResults =
-    results.length === 0 && client.accountingProfile
+  const storedResults = getResultsForClientId(client.id);
+  const apiResults =
+    storedResults.length === 0 && client.accountingProfile
       ? getApiDerivedResults(client)
       : [];
 
@@ -55,8 +67,8 @@ export function getMatrixForClient(client: Client): QsMatrixRow[] {
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((check) => {
       const result =
-        results.find((entry) => entry.checkId === check.id) ??
-        apiDerivedResults.find((entry) => entry.checkId === check.id) ??
+        storedResults.find((entry) => entry.checkId === check.id) ??
+        apiResults.find((entry) => entry.checkId === check.id) ??
         missingResult(client, check.id, check.defaultSeverity);
       return { ...check, result };
     });
@@ -113,7 +125,7 @@ export function getDashboardMetrics(
   sourceClients: Client[] = clients,
 ): DashboardMetrics {
   const scores = sourceClients.map(calculateClientScore);
-  const allResults = sourceClients.flatMap((client) => getMatrixForClient(client));
+  const allRows = sourceClients.flatMap((client) => getMatrixForClient(client));
   const averageScore =
     scores.length > 0
       ? Math.round(
@@ -125,10 +137,10 @@ export function getDashboardMetrics(
     checkedClients: sourceClients.length,
     averageScore,
     criticalClients: scores.filter((score) => score.trafficLight === "red").length,
-    openQuestions: allResults.filter((row) =>
+    apiFindings: allRows.filter((row) =>
       ["warning", "critical", "not_checkable"].includes(row.result.status),
     ).length,
-    notCheckablePoints: allResults.filter(
+    notCheckablePoints: allRows.filter(
       (row) => row.result.status === "not_checkable",
     ).length,
     lastDataStatus: getLatestDataStatus(sourceClients),
@@ -166,7 +178,7 @@ export function getHeatmap(sourceClients: Client[] = clients): HeatmapCell[] {
         notApplicable,
         score,
         riskLevel:
-          critical > 0 ? "red" : warning + notCheckable > 1 ? "amber" : "green",
+          critical > 0 ? "red" : warning + notCheckable > 0 ? "amber" : "green",
       };
     });
 }
@@ -238,20 +250,19 @@ export function buildManagementSummary(client: Client) {
   const notCheckable = matrix.filter(
     (row) => row.result.status === "not_checkable",
   );
+  const notApplicable = matrix.filter(
+    (row) => row.result.status === "not_applicable",
+  );
 
-  const base = `Für Mandat ${client.mandatsnummer} liegt der QS-Score bei ${score.score} von 100 Punkten.`;
+  const base = `Fuer Mandat ${client.mandatsnummer} liegt der API-basierte QS-Score bei ${score.score} von 100 Punkten.`;
   if (critical.length > 0) {
     const first = critical[0];
-    return `${base} Der Mandatsstatus ist rot, weil mindestens ein kritischer Befund vorliegt. Belegt ist aktuell: ${first.title} - ${first.result.evidence}. ${
-      notCheckable.length > 0
-        ? `${notCheckable.length} QS-Punkt(e) sind nicht prüfbar und werden nicht als erfüllt gezählt.`
-        : ""
-    }`;
+    return `${base} Der Mandatsstatus ist rot, weil ein kritischer API-Befund vorliegt. Belegt ist aktuell: ${first.title} - ${first.result.evidence}.`;
   }
   if (warnings.length > 0 || notCheckable.length > 0) {
-    return `${base} Es bestehen keine kritischen P0-Befunde, aber ${warnings.length} auffällige und ${notCheckable.length} nicht prüfbare QS-Punkte. Fehlende Evidenz ist als nicht prüfbar gekennzeichnet.`;
+    return `${base} Es gibt ${warnings.length} auffaellige und ${notCheckable.length} nicht pruefbare API-QS-Punkte. ${notApplicable.length} Detailpruefungen sind im Gesamtbestand ausgeblendet oder fuer dieses Mandat nicht anwendbar.`;
   }
-  return `${base} Alle anwendbaren QS-Punkte sind erfüllt oder nachvollziehbar als entfällt dokumentiert.`;
+  return `${base} Alle aktuell anwendbaren API-QS-Punkte sind erfuellt. Nicht per API belegbare Alt-QS-Punkte sind nicht mehr Teil der Wertung.`;
 }
 
 export function createSimulatedRefreshRun(triggeredBy: string): RefreshRun {
@@ -262,9 +273,9 @@ export function createSimulatedRefreshRun(triggeredBy: string): RefreshRun {
     status: "success",
     triggeredBy,
     log: [
-      "Workspace-Identität geprüft",
+      "Workspace-Identitaet geprueft",
       "Mock-Datenquelle geladen",
-      "QS-Regeln QS-FiBu-2026.06 neu berechnet",
+      "API-faehige QS-Regeln neu berechnet",
       "KPI-Kacheln, Heatmap und Handlungsbedarf aktualisiert",
     ],
   };
@@ -288,15 +299,16 @@ export function createRefreshRun(
       : "Mock-Datenquelle");
   const status = input.status ?? "success";
   const successLog = [
-    "Workspace-Identität geprüft",
+    "Workspace-Identitaet geprueft",
     `${sourceLabel} geladen (${input.checkedClients} Mandate)`,
     ...(input.logDetails ?? []),
-    "QS-Regeln QS-FiBu-2026.06 neu berechnet",
+    "Nur API-faehige QS-Regeln berechnet",
+    "Nicht per API belegbare Alt-QS-Punkte aus der Wertung entfernt",
     "KPI-Kacheln, Heatmap und Handlungsbedarf aktualisiert",
   ];
   const failedLog = [
-    "Workspace-Identität geprüft",
-    `${sourceLabel} konnte nicht vollständig geladen werden`,
+    "Workspace-Identitaet geprueft",
+    `${sourceLabel} konnte nicht vollstaendig geladen werden`,
     input.errorMessage ?? "Unbekannter Fehler im QS-Regellauf",
   ];
 
@@ -316,24 +328,15 @@ function missingResult(
   checkId: string,
   severity: Severity,
 ): QsResult {
-  const hasApiProfile = Boolean(client.accountingProfile);
-
   return {
     id: `${client.id}-${checkId}-missing`,
     clientId: client.id,
     checkId,
     status: "not_checkable",
     severity,
-    finding: hasApiProfile
-      ? "Dieser QS-Punkt kann aus den aktuell angebundenen Accounting-Daten nicht sicher beurteilt werden."
-      : "Für diesen QS-Punkt liegt kein Ergebnis vor.",
-    evidence: hasApiProfile
-      ? (client.accountingProfile?.dataQualityNote ??
-        "Keine belegbare QS-Evidenz aus der aktuellen API.")
-      : "Keine Evidenz in der aktuellen Datenquelle.",
-    recommendation: hasApiProfile
-      ? "QS-Evidenz aus Fachprüfung, Import oder erweitertem API-Endpunkt ergänzen."
-      : "Datenquelle prüfen und QS-Ergebnis nachberechnen.",
+    finding: "Fuer diesen API-QS-Punkt liegt keine berechenbare Evidenz vor.",
+    evidence: client.accountingProfile?.dataQualityNote ?? "Keine API-Evidenz.",
+    recommendation: "API-Abruf, Berechtigung oder Regelmapping pruefen.",
     ownerRole: "System / Datenintegration",
     dueDate: null,
     calculatedAt: new Date().toISOString(),
@@ -346,50 +349,27 @@ function getApiDerivedResults(client: Client): QsResult[] {
 
   const calculatedAt = new Date().toISOString();
   return [
-    apiResult(client, profile, {
-      checkId: "QS-001",
-      status: "fulfilled",
-      severity: "P2",
-      finding: "Mandat ist als aktive laufende FiBu qualifiziert.",
-      evidence:
-        "Accounting-Client vorhanden, Stammdatenstatus aktiv und Wirtschaftsjahr abrufbar.",
-      recommendation: "Keine Aktion erforderlich.",
-      ownerRole: "FiBu-Team",
-      calculatedAt,
-    }),
-    apiResult(client, profile, {
-      checkId: "QS-020",
-      status: profile.latestFiscalYear ? "fulfilled" : "not_checkable",
-      severity: "P2",
-      finding: profile.latestFiscalYear
-        ? "Ein Rechnungswesen-Wirtschaftsjahr ist abrufbar."
-        : "Kein Rechnungswesen-Wirtschaftsjahr abrufbar.",
-      evidence: getFiscalYearEvidence(profile),
-      recommendation: profile.latestFiscalYear
-        ? "Keine Aktion erforderlich."
-        : "Rechnungswesenbestand in der Datenquelle prüfen.",
-      ownerRole: "FiBu-Team",
-      calculatedAt,
-    }),
-    apiResult(client, profile, getSequenceResult(profile, calculatedAt)),
-    apiResult(client, profile, getProcessingStatusResult(profile, calculatedAt)),
+    getActiveAccountingResult(client, profile, calculatedAt),
+    getFiscalYearResult(client, profile, calculatedAt),
+    getFiscalYearFieldsResult(client, profile, calculatedAt),
+    getBookingSequenceAvailableResult(client, profile, calculatedAt),
+    getBookingSequenceCommittedResult(client, profile, calculatedAt),
+    getPostingAvailabilityResult(client, profile, calculatedAt),
+    getPostingTextResult(client, profile, calculatedAt),
+    getPostingAccountResult(client, profile, calculatedAt),
+    getOpenItemsAvailabilityResult(client, profile, calculatedAt),
+    getOverdueOpenItemsResult(client, profile, calculatedAt),
+    getSumsAndBalancesAvailabilityResult(client, profile, calculatedAt),
+    getAccountsWithMovementResult(client, profile, calculatedAt),
+    getTaxIndicatorResult(client, profile, calculatedAt),
+    getAccountingStatisticsResult(client, profile, calculatedAt),
   ];
 }
 
 function apiResult(
   client: Client,
   profile: AccountingProfile,
-  input: {
-    checkId: string;
-    status: QsStatus;
-    severity: Severity;
-    finding: string;
-    evidence: string;
-    recommendation: string;
-    ownerRole: string;
-    calculatedAt: string;
-    dueDate?: string | null;
-  },
+  input: ApiResultInput,
 ): QsResult {
   return {
     id: `${client.id}-${input.checkId}-api`,
@@ -406,75 +386,425 @@ function apiResult(
   };
 }
 
-function getSequenceResult(
+function getActiveAccountingResult(
+  client: Client,
   profile: AccountingProfile,
   calculatedAt: string,
-): Parameters<typeof apiResult>[2] {
+) {
+  return apiResult(client, profile, {
+    checkId: "API-001",
+    status: "fulfilled",
+    severity: "P0",
+    finding: "Mandat ist in der aktiven Accounting-Grundgesamtheit enthalten.",
+    evidence: "Accounting-Client vorhanden und Stammdatenstatus aktiv.",
+    recommendation: "Keine Aktion erforderlich.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getFiscalYearResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  if (!profile.latestFiscalYear) {
+    return apiResult(client, profile, dashboardOnly("API-010", "P0", calculatedAt));
+  }
+  return apiResult(client, profile, {
+    checkId: "API-010",
+    status: "fulfilled",
+    severity: "P0",
+    finding: "Rechnungswesen-Wirtschaftsjahr ist abrufbar.",
+    evidence: getFiscalYearEvidence(profile),
+    recommendation: "Keine Aktion erforderlich.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getFiscalYearFieldsResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const fiscalYear = profile.latestFiscalYear;
+  if (!fiscalYear) {
+    return apiResult(client, profile, dashboardOnly("API-011", "P2", calculatedAt));
+  }
+  const complete = Boolean(fiscalYear.begin && fiscalYear.end);
+  return apiResult(client, profile, {
+    checkId: "API-011",
+    status: complete ? "fulfilled" : "warning",
+    severity: "P2",
+    finding: complete
+      ? "Beginn und Ende des Wirtschaftsjahres sind vorhanden."
+      : "Beginn oder Ende des Wirtschaftsjahres fehlen.",
+    evidence: getFiscalYearEvidence(profile),
+    recommendation: complete
+      ? "Keine Aktion erforderlich."
+      : "Wirtschaftsjahr-Stammdaten im Rechnungswesen pruefen.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getBookingSequenceAvailableResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  if (!profile.latestFiscalYear) {
+    return apiResult(client, profile, dashboardOnly("API-020", "P1", calculatedAt));
+  }
+  const sequence = profile.latestSequence;
+  return apiResult(client, profile, {
+    checkId: "API-020",
+    status: sequence ? "fulfilled" : "warning",
+    severity: "P1",
+    finding: sequence
+      ? "Letzter Buchungsbestand ist ueber verarbeitete Sequenz ermittelt."
+      : "Zum Wirtschaftsjahr wurde keine verarbeitete Buchungssequenz gefunden.",
+    evidence: sequence ? getSequenceEvidence(profile) : getFiscalYearEvidence(profile),
+    recommendation: sequence
+      ? "Keine Aktion erforderlich."
+      : "Buchungsstand oder Schnittstellenberechtigung pruefen.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getBookingSequenceCommittedResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  if (!profile.latestFiscalYear) {
+    return apiResult(client, profile, dashboardOnly("API-021", "P0", calculatedAt));
+  }
   const sequence = profile.latestSequence;
   if (!sequence) {
-    return {
-      checkId: "QS-100",
+    return apiResult(client, profile, {
+      checkId: "API-021",
       status: "not_checkable",
       severity: "P0",
-      finding:
-        "Keine verarbeitete Buchungssequenz in den geprüften Wirtschaftsjahren abrufbar.",
-      evidence: profile.dataQualityNote,
-      recommendation:
-        "Buchungsbestand oder Schnittstellenberechtigung prüfen, bevor die Periode fachlich bewertet wird.",
-      ownerRole: "Teamleitung",
+      finding: "Festschreibung ist ohne Buchungssequenz nicht pruefbar.",
+      evidence: getFiscalYearEvidence(profile),
+      recommendation: "Buchungssequenz nachladen oder Berechtigung pruefen.",
+      ownerRole: "Teamleitung FiBu",
       calculatedAt,
-    };
+    });
   }
-
-  const isCommitted = sequence.isCommitted === true;
-  return {
-    checkId: "QS-100",
-    status: isCommitted ? "fulfilled" : "warning",
+  return apiResult(client, profile, {
+    checkId: "API-021",
+    status: sequence.isCommitted === true ? "fulfilled" : "warning",
     severity: "P0",
-    finding: isCommitted
-      ? "Letzte Buchungssequenz ist als festgeschrieben gekennzeichnet."
-      : "Letzte Buchungssequenz ist nicht als festgeschrieben gekennzeichnet.",
+    finding:
+      sequence.isCommitted === true
+        ? "Letzte Sequenz ist als festgeschrieben markiert."
+        : "Letzte Sequenz ist nicht als festgeschrieben markiert.",
     evidence: getSequenceEvidence(profile),
-    recommendation: isCommitted
+    recommendation:
+      sequence.isCommitted === true
+        ? "Keine Aktion erforderlich."
+        : "Festschreibung fachlich pruefen.",
+    ownerRole: "Teamleitung FiBu",
+    calculatedAt,
+  });
+}
+
+function getPostingAvailabilityResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.postingSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-030", "P1", calculatedAt));
+  return apiResult(client, profile, {
+    checkId: "API-030",
+    status: summary.sourceAvailable && summary.sampleSize > 0 ? "fulfilled" : "warning",
+    severity: "P1",
+    finding:
+      summary.sourceAvailable && summary.sampleSize > 0
+        ? "Buchungssaetze sind aus der API auswertbar."
+        : "Buchungssatz-Endpunkt liefert keine auswertbare Stichprobe.",
+    evidence: `Stichprobe ${summary.sampleSize} Buchungen, letzter Buchungstag ${summary.latestPostingDate ?? "nicht geliefert"}.`,
+    recommendation:
+      summary.sourceAvailable && summary.sampleSize > 0
+        ? "Keine Aktion erforderlich."
+        : "Buchungssatzabruf oder Rechnungswesenbestand pruefen.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getPostingTextResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.postingSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-031", "P1", calculatedAt));
+  if (!summary.sourceAvailable || summary.sampleSize === 0) {
+    return apiResult(client, profile, notCheckable("API-031", "P1", "Keine Buchungssatz-Stichprobe vorhanden.", calculatedAt));
+  }
+  const issueCount =
+    summary.missingDocumentFieldCount + summary.missingPostingTextCount;
+  const issueRate = issueCount / (summary.sampleSize * 2);
+  const status: QsStatus =
+    issueRate > 0.25 ? "critical" : issueCount > 0 ? "warning" : "fulfilled";
+  return apiResult(client, profile, {
+    checkId: "API-031",
+    status,
+    severity: "P1",
+    finding:
+      issueCount > 0
+        ? "Buchungen mit fehlendem Belegfeld oder Buchungstext gefunden."
+        : "Belegfeld und Buchungstext sind in der Stichprobe gefuellt.",
+    evidence: `${summary.missingDocumentFieldCount} fehlende Belegfelder, ${summary.missingPostingTextCount} fehlende Buchungstexte bei ${summary.sampleSize} Buchungen.`,
+    recommendation:
+      issueCount > 0
+        ? "Buchungstexte und Belegfelder im Rechnungswesen nacharbeiten."
+        : "Keine Aktion erforderlich.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getPostingAccountResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.postingSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-032", "P1", calculatedAt));
+  if (!summary.sourceAvailable || summary.sampleSize === 0) {
+    return apiResult(client, profile, notCheckable("API-032", "P1", "Keine Buchungssatz-Stichprobe vorhanden.", calculatedAt));
+  }
+  const issueCount = summary.missingAccountCount + summary.missingContraAccountCount;
+  return apiResult(client, profile, {
+    checkId: "API-032",
+    status: issueCount > 0 ? "warning" : "fulfilled",
+    severity: "P1",
+    finding:
+      issueCount > 0
+        ? "Buchungen mit fehlendem Konto oder Gegenkonto gefunden."
+        : "Konto und Gegenkonto sind in der Stichprobe gefuellt.",
+    evidence: `${summary.missingAccountCount} fehlende Konten, ${summary.missingContraAccountCount} fehlende Gegenkonten, ${summary.uniqueAccountCount} unterschiedliche Konten.`,
+    recommendation:
+      issueCount > 0
+        ? "Kontierung in der Buchungssatz-Stichprobe pruefen."
+        : "Keine Aktion erforderlich.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getOpenItemsAvailabilityResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.openItemsSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-040", "P1", calculatedAt));
+  const available = summary.receivableSourceAvailable || summary.payableSourceAvailable;
+  return apiResult(client, profile, {
+    checkId: "API-040",
+    status: available ? "fulfilled" : "not_checkable",
+    severity: "P1",
+    finding: available
+      ? "OPOS-Debitoren/Kreditoren sind API-seitig auswertbar."
+      : "OPOS-Endpunkte konnten nicht auswertbar geladen werden.",
+    evidence: `${summary.receivableSampleSize} Debitorenposten, ${summary.payableSampleSize} Kreditorenposten in der Stichprobe.`,
+    recommendation: available
       ? "Keine Aktion erforderlich."
-      : "Festschreibungsstatus im Rechnungswesen prüfen und fachlich freigeben.",
-    ownerRole: "Teamleitung",
+      : "OPOS-Berechtigung oder Rechnungswesenbestand pruefen.",
+    ownerRole: "FiBu-Team / OPOS",
+    calculatedAt,
+  });
+}
+
+function getOverdueOpenItemsResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.openItemsSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-041", "P1", calculatedAt));
+  const status: QsStatus =
+    summary.maxOverdueDays > 90 || summary.overdueItemsCount > 10
+      ? "critical"
+      : summary.overdueItemsCount > 0
+        ? "warning"
+        : "fulfilled";
+  return apiResult(client, profile, {
+    checkId: "API-041",
+    status,
+    severity: "P1",
+    finding:
+      summary.overdueItemsCount > 0
+        ? "Ueberfaellige offene Posten sind vorhanden."
+        : "Keine ueberfaelligen offenen Posten in der Stichprobe.",
+    evidence: `${summary.openItemsCount} offene Posten, ${summary.overdueItemsCount} ueberfaellig, maximale Ueberfaelligkeit ${summary.maxOverdueDays} Tage.`,
+    recommendation:
+      summary.overdueItemsCount > 0
+        ? "OPOS-Klaerung mit Sachbearbeitung/Mandant anstossen."
+        : "Keine Aktion erforderlich.",
+    ownerRole: "FiBu-Team / OPOS",
+    calculatedAt,
+  });
+}
+
+function getSumsAndBalancesAvailabilityResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.sumsAndBalancesSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-050", "P1", calculatedAt));
+  return apiResult(client, profile, {
+    checkId: "API-050",
+    status: summary.sourceAvailable && summary.sampleSize > 0 ? "fulfilled" : "not_checkable",
+    severity: "P1",
+    finding:
+      summary.sourceAvailable && summary.sampleSize > 0
+        ? "Summen- und Saldenwerte sind auswertbar."
+        : "Summen- und Saldenwerte konnten nicht geladen werden.",
+    evidence: `${summary.sampleSize} Konten in der SuSa-Stichprobe.`,
+    recommendation:
+      summary.sourceAvailable && summary.sampleSize > 0
+        ? "Keine Aktion erforderlich."
+        : "SuSa-Abruf oder Berechtigung pruefen.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getAccountsWithMovementResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.sumsAndBalancesSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-051", "P2", calculatedAt));
+  return apiResult(client, profile, {
+    checkId: "API-051",
+    status: summary.accountsWithAnnualMovementCount > 0 ? "fulfilled" : "warning",
+    severity: "P2",
+    finding:
+      summary.accountsWithAnnualMovementCount > 0
+        ? "Sachkonten mit Jahresbewegung sind erkennbar."
+        : "Keine Sachkonten mit Jahresbewegung in der Stichprobe.",
+    evidence: `${summary.accountsWithBalanceCount} Konten mit Saldo, ${summary.accountsWithAnnualMovementCount} Konten mit Jahresbewegung.`,
+    recommendation:
+      summary.accountsWithAnnualMovementCount > 0
+        ? "Keine Aktion erforderlich."
+        : "Zeitraum oder SuSa-Datenbestand pruefen.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function getTaxIndicatorResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.postingSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-060", "P1", calculatedAt));
+  if (!summary.sourceAvailable || summary.sampleSize === 0) {
+    return apiResult(client, profile, notCheckable("API-060", "P1", "Keine Buchungssatz-Stichprobe vorhanden.", calculatedAt));
+  }
+  const allTaxMissing = summary.missingTaxRateCount >= summary.sampleSize;
+  return apiResult(client, profile, {
+    checkId: "API-060",
+    status: allTaxMissing ? "warning" : "fulfilled",
+    severity: "P1",
+    finding: allTaxMissing
+      ? "Steuersatz-/USt-Indikatoren fehlen in der Buchungssatz-Stichprobe."
+      : "Steuersatz-/USt-Indikatoren sind in Buchungen auswertbar.",
+    evidence: `${summary.missingTaxRateCount} von ${summary.sampleSize} Buchungen ohne tax_rate.`,
+    recommendation: allTaxMissing
+      ? "USt-Auswertbarkeit und Konten-/Steuerschluessel-Mapping pruefen."
+      : "Keine Aktion erforderlich.",
+    ownerRole: "Steuerfachliche Pruefung",
+    calculatedAt,
+  });
+}
+
+function getAccountingStatisticsResult(
+  client: Client,
+  profile: AccountingProfile,
+  calculatedAt: string,
+) {
+  const summary = profile.accountingStatisticsSummary;
+  if (!summary) return apiResult(client, profile, detailOnly("API-070", "P2", calculatedAt));
+  return apiResult(client, profile, {
+    checkId: "API-070",
+    status: summary.sourceAvailable && summary.sampleSize > 0 ? "fulfilled" : "warning",
+    severity: "P2",
+    finding:
+      summary.sourceAvailable && summary.sampleSize > 0
+        ? "Accounting-Statistiken sind abrufbar."
+        : "Accounting-Statistiken liefern keine auswertbare Stichprobe.",
+    evidence: `Monate ${summary.sampleSize}, letzter Monat ${summary.latestMonth ?? "nicht geliefert"}, Journal ${summary.journalCount ?? "n/a"}, Prima Nota ${summary.primaNotaCount ?? "n/a"}.`,
+    recommendation:
+      summary.sourceAvailable && summary.sampleSize > 0
+        ? "Keine Aktion erforderlich."
+        : "Statistik-Endpunkt oder Periodenbestand pruefen.",
+    ownerRole: "FiBu-Team",
+    calculatedAt,
+  });
+}
+
+function detailOnly(
+  checkId: string,
+  severity: Severity,
+  calculatedAt: string,
+): ApiResultInput {
+  return {
+    checkId,
+    status: "not_applicable",
+    severity,
+    finding: "Diese API-Detailregel wird nur in der Einzelmandatsauswertung berechnet.",
+    evidence: "Im Gesamtbestand werden keine tiefen Buchungs-/OPOS-/SuSa-Abrufe fuer alle Mandate ausgefuehrt.",
+    recommendation: "Einzelmandat oeffnen, um die Detailregel zu berechnen.",
+    ownerRole: "System / Datenintegration",
     calculatedAt,
   };
 }
 
-function getProcessingStatusResult(
-  profile: AccountingProfile,
+function dashboardOnly(
+  checkId: string,
+  severity: Severity,
   calculatedAt: string,
-): Parameters<typeof apiResult>[2] {
-  const sequence = profile.latestSequence;
-  if (!sequence?.dateTo) {
-    return {
-      checkId: "QS-110",
-      status: "not_checkable",
-      severity: "P2",
-      finding: "Bearbeitungsstand kann ohne Buchungssequenzdatum nicht bewertet werden.",
-      evidence: profile.dataQualityNote,
-      recommendation: "Letzten Buchungsstand aus der Datenquelle klären.",
-      ownerRole: "Auftragssteuerung",
-      calculatedAt,
-    };
-  }
-
-  const ageDays = getAgeInDays(sequence.dateTo);
-  const isCurrent = ageDays <= 45;
+): ApiResultInput {
   return {
-    checkId: "QS-110",
-    status: isCurrent ? "fulfilled" : "warning",
-    severity: "P2",
-    finding: isCurrent
-      ? "Der letzte Buchungsstand liegt innerhalb des erwarteten Prüffensters."
-      : "Der letzte Buchungsstand liegt mehr als 45 Tage zurück.",
-    evidence: getSequenceEvidence(profile),
-    recommendation: isCurrent
-      ? "Keine Aktion erforderlich."
-      : "Aktualität der laufenden FiBu mit Sachbearbeitung klären.",
-    ownerRole: "Auftragssteuerung",
+    checkId,
+    status: "not_applicable",
+    severity,
+    finding: "Diese API-Regel wird erst beim Oeffnen des Einzelmandats verbindlich geprueft.",
+    evidence: "Das Dashboard nutzt nur die aktive Accounting-Grundgesamtheit.",
+    recommendation: "Einzelmandat oeffnen, um Wirtschaftsjahr und Buchungsbestand zu pruefen.",
+    ownerRole: "System / Datenintegration",
+    calculatedAt,
+  };
+}
+
+function notCheckable(
+  checkId: string,
+  severity: Severity,
+  finding: string,
+  calculatedAt: string,
+): ApiResultInput {
+  return {
+    checkId,
+    status: "not_checkable",
+    severity,
+    finding,
+    evidence: "API-Evidenz fehlt in der geladenen Detailstichprobe.",
+    recommendation: "API-Abruf, Berechtigung oder Periodenbestand pruefen.",
+    ownerRole: "System / Datenintegration",
     calculatedAt,
   };
 }
@@ -484,7 +814,7 @@ function getFiscalYearEvidence(profile: AccountingProfile) {
   if (!fiscalYear) return profile.dataQualityNote;
   return `Wirtschaftsjahr ${fiscalYear.begin ?? "ohne Beginn"} bis ${
     fiscalYear.end ?? "ohne Ende"
-  }.`;
+  }, gesperrt: ${fiscalYear.isLocked === true ? "ja" : "nein/unklar"}.`;
 }
 
 function getSequenceEvidence(profile: AccountingProfile) {
@@ -493,12 +823,6 @@ function getSequenceEvidence(profile: AccountingProfile) {
   return `Buchungssequenz ${sequence.dateFrom ?? "ohne Start"} bis ${
     sequence.dateTo ?? "ohne Ende"
   }, Festschreibung: ${sequence.isCommitted === true ? "ja" : "nein/unklar"}.`;
-}
-
-function getAgeInDays(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return Number.POSITIVE_INFINITY;
-  return Math.floor((Date.now() - date.getTime()) / 86_400_000);
 }
 
 function getTrafficLight(

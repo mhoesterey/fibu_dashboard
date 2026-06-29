@@ -25,7 +25,7 @@ export async function GET(_request: Request, context: ExportRouteContext) {
   const score = calculateClientScore(client);
   const matrix = getMatrixForClient(client);
   const markdown = [
-    `# QS-Auswertung ${client.mandatsnummer} - ${client.mandantenname}`,
+    `# API-QS-Auswertung ${client.mandatsnummer} - ${client.mandantenname}`,
     "",
     `Zeitraum: ${client.zeitraum}`,
     `Datenstand: ${client.datenstand}`,
@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: ExportRouteContext) {
     "",
     buildManagementSummary(client),
     "",
-    "## QS-Matrix",
+    "## API-QS-Matrix",
     "",
     "| QS-ID | Kategorie | Titel | Status | Schweregrad | Befund | Evidenz | Empfehlung | Rolle | Fälligkeit |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",

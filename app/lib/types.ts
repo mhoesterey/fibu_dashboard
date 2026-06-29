@@ -53,6 +53,48 @@ export type AccountingProfile = {
   };
   bookingDataStatus: "sequence" | "fiscal_year";
   dataQualityNote: string;
+  postingSummary?: PostingSummary;
+  openItemsSummary?: OpenItemsSummary;
+  sumsAndBalancesSummary?: SumsAndBalancesSummary;
+  accountingStatisticsSummary?: AccountingStatisticsSummary;
+};
+
+export type PostingSummary = {
+  sourceAvailable: boolean;
+  sampleSize: number;
+  latestPostingDate: string | null;
+  missingDocumentFieldCount: number;
+  missingPostingTextCount: number;
+  missingAccountCount: number;
+  missingContraAccountCount: number;
+  missingTaxRateCount: number;
+  uniqueAccountCount: number;
+};
+
+export type OpenItemsSummary = {
+  receivableSourceAvailable: boolean;
+  payableSourceAvailable: boolean;
+  receivableSampleSize: number;
+  payableSampleSize: number;
+  openItemsCount: number;
+  overdueItemsCount: number;
+  blockedItemsCount: number;
+  maxOverdueDays: number;
+};
+
+export type SumsAndBalancesSummary = {
+  sourceAvailable: boolean;
+  sampleSize: number;
+  accountsWithBalanceCount: number;
+  accountsWithAnnualMovementCount: number;
+};
+
+export type AccountingStatisticsSummary = {
+  sourceAvailable: boolean;
+  sampleSize: number;
+  latestMonth: string | null;
+  journalCount: number | null;
+  primaNotaCount: number | null;
 };
 
 export type DataLoadSummary = {
@@ -110,7 +152,7 @@ export type DashboardMetrics = {
   checkedClients: number;
   averageScore: number;
   criticalClients: number;
-  openQuestions: number;
+  apiFindings: number;
   notCheckablePoints: number;
   lastDataStatus: string;
 };

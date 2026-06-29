@@ -1,5 +1,13 @@
 import { clients } from "./mock-data";
-import type { AccountingProfile, Client, DataLoadSummary } from "./types";
+import type {
+  AccountingProfile,
+  AccountingStatisticsSummary,
+  Client,
+  DataLoadSummary,
+  OpenItemsSummary,
+  PostingSummary,
+  SumsAndBalancesSummary,
+} from "./types";
 
 type RawRecord = Record<string, unknown>;
 
@@ -295,12 +303,22 @@ export class KlardatenGatewayClient implements DatevDataClient {
       profile.accountingClientId,
       sortedFiscalYears,
     );
+    const selectedFiscalYear = sequenceLookup?.fiscalYear ?? sortedFiscalYears[0];
+    const latestSequence = sequenceLookup?.sequence ?? null;
+    const fiscalYearId = stringValue(selectedFiscalYear.id);
+    const detailSummaries = fiscalYearId
+      ? await this.loadAccountingDetailSummaries(
+          profile.accountingClientId,
+          fiscalYearId,
+        )
+      : {};
 
     const enrichedProfile = buildAccountingProfile({
       accountingClientId: profile.accountingClientId,
       masterDataClientId: profile.masterDataClientId,
-      selectedFiscalYear: sequenceLookup?.fiscalYear ?? sortedFiscalYears[0],
-      latestSequence: sequenceLookup?.sequence ?? null,
+      selectedFiscalYear,
+      latestSequence,
+      ...detailSummaries,
     });
 
     return {
@@ -308,6 +326,50 @@ export class KlardatenGatewayClient implements DatevDataClient {
       zeitraum: getAccountingPeriodLabel(enrichedProfile),
       datenstand: getAccountingDataStatus(enrichedProfile),
       accountingProfile: enrichedProfile,
+    };
+  }
+
+  private async loadAccountingDetailSummaries(
+    accountingClientId: string,
+    fiscalYearId: string,
+  ) {
+    const basePath = `${ACCOUNTING_CLIENTS_PATH}/${encodeURIComponent(
+      accountingClientId,
+    )}/fiscal-years/${encodeURIComponent(fiscalYearId)}`;
+
+    const [postings, receivables, payables, balances, statistics] =
+      await Promise.all([
+        this.requestRowsWithStatus(`${basePath}/account-postings`),
+        this.requestRowsWithStatus(`${basePath}/accounts-receivable`, {
+          top: 100,
+        }),
+        this.requestRowsWithStatus(`${basePath}/accounts-payable`, {
+          top: 100,
+        }),
+        this.requestRowsWithStatus(`${basePath}/accounting-sums-and-balances`, {
+          top: 100,
+        }),
+        this.requestRowsWithStatus(`${basePath}/accounting-statistics`, {
+          top: 24,
+        }),
+      ]);
+
+    return {
+      postingSummary: summarizePostings(postings.rows, postings.available),
+      openItemsSummary: summarizeOpenItems({
+        receivables: receivables.rows,
+        payables: payables.rows,
+        receivableSourceAvailable: receivables.available,
+        payableSourceAvailable: payables.available,
+      }),
+      sumsAndBalancesSummary: summarizeSumsAndBalances(
+        balances.rows,
+        balances.available,
+      ),
+      accountingStatisticsSummary: summarizeAccountingStatistics(
+        statistics.rows,
+        statistics.available,
+      ),
     };
   }
 
@@ -369,6 +431,17 @@ export class KlardatenGatewayClient implements DatevDataClient {
       return await this.requestRows(path, query);
     } catch {
       return [];
+    }
+  }
+
+  private async requestRowsWithStatus(
+    path: string,
+    query: Record<string, string | number | undefined> = {},
+  ) {
+    try {
+      return { available: true, rows: await this.requestRows(path, query) };
+    } catch {
+      return { available: false, rows: [] };
     }
   }
 
@@ -459,6 +532,10 @@ function buildAccountingProfile(input: {
   masterDataClientId: string;
   selectedFiscalYear: RawRecord | null;
   latestSequence: RawRecord | null;
+  postingSummary?: PostingSummary;
+  openItemsSummary?: OpenItemsSummary;
+  sumsAndBalancesSummary?: SumsAndBalancesSummary;
+  accountingStatisticsSummary?: AccountingStatisticsSummary;
 }): AccountingProfile {
   const fiscalYearId = input.selectedFiscalYear
     ? stringValue(input.selectedFiscalYear.id)
@@ -497,7 +574,144 @@ function buildAccountingProfile(input: {
       : fiscalYearId
         ? "Aktives FiBu-Mandat mit Rechnungswesen-Wirtschaftsjahr; Buchungssequenz wird in der Einzelmandatsauswertung vertieft geprüft."
         : "Aktives Accounting-Mandat; Wirtschaftsjahr und Buchungsbestand werden in der Einzelmandatsauswertung vertieft geprüft.",
+    postingSummary: input.postingSummary,
+    openItemsSummary: input.openItemsSummary,
+    sumsAndBalancesSummary: input.sumsAndBalancesSummary,
+    accountingStatisticsSummary: input.accountingStatisticsSummary,
   };
+}
+
+function summarizePostings(
+  rows: RawRecord[],
+  sourceAvailable: boolean,
+): PostingSummary {
+  const uniqueAccounts = new Set<string>();
+
+  for (const row of rows) {
+    const account = stringValue(row.account_number);
+    if (account) uniqueAccounts.add(account);
+  }
+
+  return {
+    sourceAvailable,
+    sampleSize: rows.length,
+    latestPostingDate: latestDate(rows.map((row) => row.date)),
+    missingDocumentFieldCount: rows.filter(
+      (row) => !hasTextValue(row.document_field1),
+    ).length,
+    missingPostingTextCount: rows.filter(
+      (row) => !hasTextValue(row.posting_description),
+    ).length,
+    missingAccountCount: rows.filter((row) => !hasTextValue(row.account_number))
+      .length,
+    missingContraAccountCount: rows.filter(
+      (row) => !hasTextValue(row.contra_account_number),
+    ).length,
+    missingTaxRateCount: rows.filter((row) => !hasTextValue(row.tax_rate))
+      .length,
+    uniqueAccountCount: uniqueAccounts.size,
+  };
+}
+
+function summarizeOpenItems(input: {
+  receivables: RawRecord[];
+  payables: RawRecord[];
+  receivableSourceAvailable: boolean;
+  payableSourceAvailable: boolean;
+}): OpenItemsSummary {
+  const rows = [...input.receivables, ...input.payables];
+  const openRows = rows.filter(isOpenItem);
+  const overdueDays = openRows.map(getOverdueDays).filter((days) => days > 0);
+
+  return {
+    receivableSourceAvailable: input.receivableSourceAvailable,
+    payableSourceAvailable: input.payableSourceAvailable,
+    receivableSampleSize: input.receivables.length,
+    payableSampleSize: input.payables.length,
+    openItemsCount: openRows.length,
+    overdueItemsCount: overdueDays.length,
+    blockedItemsCount: openRows.filter(
+      (row) =>
+        booleanValue(row.has_dunning_block) === true ||
+        booleanValue(row.has_interest_block) === true,
+    ).length,
+    maxOverdueDays: overdueDays.length > 0 ? Math.max(...overdueDays) : 0,
+  };
+}
+
+function summarizeSumsAndBalances(
+  rows: RawRecord[],
+  sourceAvailable: boolean,
+): SumsAndBalancesSummary {
+  return {
+    sourceAvailable,
+    sampleSize: rows.length,
+    accountsWithBalanceCount: rows.filter(
+      (row) => Math.abs(numberValue(row.balance) ?? 0) > 0,
+    ).length,
+    accountsWithAnnualMovementCount: rows.filter(hasAnnualMovement).length,
+  };
+}
+
+function summarizeAccountingStatistics(
+  rows: RawRecord[],
+  sourceAvailable: boolean,
+): AccountingStatisticsSummary {
+  const latest = [...rows].sort(
+    (left, right) => dateRank(right.month) - dateRank(left.month),
+  )[0];
+
+  return {
+    sourceAvailable,
+    sampleSize: rows.length,
+    latestMonth: latest ? dateStringValue(latest.month) : null,
+    journalCount: latest ? numberValue(latest.count_of_accounting_journal) : null,
+    primaNotaCount: latest
+      ? numberValue(latest.count_of_accounting_prima_nota)
+      : null,
+  };
+}
+
+function isOpenItem(row: RawRecord) {
+  const isCleared = booleanValue(row.is_cleared);
+  const openBalance = Math.abs(numberValue(row.open_balance_of_item) ?? 0);
+  return isCleared === false || openBalance > 0;
+}
+
+function getOverdueDays(row: RawRecord) {
+  const dueDate = dateStringValue(row.due_date);
+  if (!dueDate) return 0;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return 0;
+  return Math.max(0, Math.floor((Date.now() - due.getTime()) / 86_400_000));
+}
+
+function hasAnnualMovement(row: RawRecord) {
+  return Object.entries(row).some(
+    ([key, value]) =>
+      key.startsWith("annual_value") && Math.abs(numberValue(value) ?? 0) > 0,
+  );
+}
+
+function latestDate(values: unknown[]) {
+  const ranked = values
+    .map((value) => dateStringValue(value))
+    .filter(isPresent)
+    .sort((left, right) => dateRank(right) - dateRank(left));
+  return ranked[0] ?? null;
+}
+
+function hasTextValue(value: unknown) {
+  return stringValue(value) !== null;
+}
+
+function numberValue(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function normalizeRows(payload: unknown): RawRecord[] {

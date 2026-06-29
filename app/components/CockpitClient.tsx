@@ -159,7 +159,7 @@ export function CockpitClient({
       setMandateMessage(
         error instanceof Error
           ? error.message
-          : "QS-Auswertung konnte nicht geöffnet werden.",
+          : "API-QS-Auswertung konnte nicht geöffnet werden.",
       );
     } finally {
       setIsValidating(false);
@@ -204,10 +204,10 @@ export function CockpitClient({
           <p className="eyebrow">Internes FiBu-QS-Controlling</p>
           <h1>Überblick für Kanzleileitung und Team</h1>
           <p className="hero-subtitle">
-            Das Cockpit zeigt Qualität, Risiken und Handlungsbedarf in der
-            laufenden Finanzbuchhaltung. Die Kanzleileitung sieht den
-            Gesamtbestand, Mitarbeitende öffnen ihr Einzelmandat und ziehen
-            daraus den QS-Report.
+            Das Cockpit zeigt den aktiven FiBu-Gesamtbestand und API-belegte
+            QS-Hinweise. Die Kanzleileitung sieht den Grundbestand,
+            Mitarbeitende öffnen ihr Einzelmandat für die vertiefte Analyse
+            und ziehen daraus den API-QS-Report.
           </p>
           <div className="hero-actions">
             <button
@@ -243,7 +243,7 @@ export function CockpitClient({
               <span>Gesamtbestand</span>
               <strong>{metrics.averageScore}%</strong>
             </div>
-            <div className="visual-score" aria-label="Durchschnittlicher QS-Score">
+            <div className="visual-score" aria-label="API-Grundscore aktiver FiBu-Mandate">
               <div style={{ width: `${metrics.averageScore}%` }} />
             </div>
             <div className="control-metrics">
@@ -256,8 +256,8 @@ export function CockpitClient({
                 <strong>{metrics.criticalClients}</strong>
               </div>
               <div>
-                <span>Rückfragen</span>
-                <strong>{metrics.openQuestions}</strong>
+                <span>API-Hinweise</span>
+                <strong>{metrics.apiFindings}</strong>
               </div>
               <div>
                 <span>nicht prüfbar</span>
@@ -267,14 +267,14 @@ export function CockpitClient({
             <div className="visual-alert">
               <span>{criticalShare}%</span>
               <p>
-                Anteil kritischer Mandate im aktuellen QS-Lauf der laufenden
+                Anteil kritischer Mandate im aktuellen API-QS-Lauf der laufenden
                 Finanzbuchhaltung.
               </p>
             </div>
           </div>
           <div className="hero-score-strip">
             <div>
-              <span>QS-Score</span>
+              <span>API-Grundscore</span>
               <strong>{metrics.averageScore}%</strong>
             </div>
             <div>
@@ -299,7 +299,7 @@ export function CockpitClient({
             QS
           </span>
           <strong>Kanzleileitungsübersicht</strong>
-          <p>Bestand, Scores, kritische Mandate und offene Rückfragen steuern.</p>
+          <p>Aktive FiBu-Mandate, API-Scores, kritische Mandate und API-Hinweise steuern.</p>
           <small>Öffnen</small>
         </a>
         <a className="homepage-card" href="#mandatsanalyse">
@@ -307,15 +307,15 @@ export function CockpitClient({
             MA
           </span>
           <strong>Einzelmandatsanalyse</strong>
-          <p>Mandatsnummer eingeben, QS-Matrix öffnen und Report ziehen.</p>
+          <p>Mandatsnummer eingeben, API-QS-Matrix öffnen und Report ziehen.</p>
           <small>Öffnen</small>
         </a>
         <a className="homepage-card" href="#heatmap">
           <span className="card-icon" aria-hidden="true">
             HM
           </span>
-          <strong>QS-Heatmap</strong>
-          <p>FiBu-Risiken nach QS-Kategorie erkennen und priorisieren.</p>
+          <strong>API-QS-Heatmap</strong>
+          <p>FiBu-Risiken nach API-Kategorie erkennen und priorisieren.</p>
           <small>Öffnen</small>
         </a>
         <a className="homepage-card" href="#handlungsbedarf">
@@ -335,21 +335,21 @@ export function CockpitClient({
             <h2 id="kpi-title">FiBu-QS im Gesamtüberblick</h2>
           </div>
           <p className="section-intro">
-            Zentrale Steuerung der laufenden Finanzbuchhaltung: Qualität,
-            Risiken, nicht prüfbare Punkte und offener Handlungsbedarf.
+            Zentrale Steuerung der laufenden Finanzbuchhaltung: aktive
+            FiBu-Mandate, API-Grundscore und vertiefbare Einzelmandats-QS.
           </p>
         </div>
         <div className="kpi-grid">
           <KpiCard label="geprüfte Mandate" value={metrics.checkedClients} />
           <KpiCard
-            label="durchschnittlicher QS-Score"
+            label="API-Grundscore aktive FiBu"
             value={`${metrics.averageScore}%`}
             tone="strong"
           />
           <KpiCard label="kritische Mandate" value={metrics.criticalClients} tone="danger" />
-          <KpiCard label="offene Rückfragen" value={metrics.openQuestions} tone="warning" />
+          <KpiCard label="API-Hinweise" value={metrics.apiFindings} tone="warning" />
           <KpiCard
-            label="nicht prüfbare QS-Punkte"
+            label="nicht prüfbare API-QS"
             value={metrics.notCheckablePoints}
             tone="muted"
           />
@@ -372,11 +372,11 @@ export function CockpitClient({
       <section className="action-band" id="handlungsbedarf">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">QS-Maßnahmen</p>
-            <h2>Top Handlungsbedarf laufende FiBu</h2>
+            <p className="eyebrow">API-QS-Maßnahmen</p>
+            <h2>API-basierter Handlungsbedarf</h2>
           </div>
           <p className="section-intro">
-            Auffällige und kritische QS-Punkte aus den Mandatsauswertungen,
+            Auffällige und kritische API-QS-Punkte aus den Mandatsauswertungen,
             geordnet nach Priorität, Verantwortungsrolle und Fälligkeit.
           </p>
         </div>
@@ -401,15 +401,15 @@ export function CockpitClient({
       <section className="dashboard-band" id="heatmap" aria-labelledby="heatmap-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">QS-Heatmap</p>
+            <p className="eyebrow">API-QS-Heatmap</p>
             <h2 id="heatmap-title">Risiko nach Kategorien</h2>
           </div>
           <p className="section-intro">
             Kategorieübergreifende Sicht auf erfüllte, auffällige, kritische
-            und nicht prüfbare QS-Punkte.
+            und nicht prüfbare API-QS-Punkte.
           </p>
         </div>
-        <div className="heatmap-table" role="table" aria-label="QS-Heatmap nach Kategorien">
+        <div className="heatmap-table" role="table" aria-label="API-QS-Heatmap nach Kategorien">
           <div className="heatmap-head" role="row">
             <span>Kategorie</span>
             <span>Erfüllt</span>
@@ -463,21 +463,21 @@ function MandatsanalyseSection({
           </h2>
           <p>
             Mitarbeitende öffnen ihr Mandat über die Mandatsnummer, prüfen
-            Score, QS-Matrix, Befunde und Evidenzen und ziehen daraus den
+            API-Score, API-QS-Matrix, Befunde und Evidenzen und ziehen daraus den
             Report für die laufende Finanzbuchhaltung.
           </p>
           <button className="primary-button" type="button" onClick={onFocusLookup}>
             Mandat prüfen
           </button>
           <small>
-            Die Auswertung bleibt intern und zeigt nur QS-relevante Daten zur
+            Die Auswertung bleibt intern und zeigt nur API-QS-relevante Daten zur
             laufenden FiBu.
           </small>
         </div>
         <div className="mandate-hero-note" aria-label="Interner Nutzungsrahmen">
           <strong>HSP STEUER Hagen</strong>
           <span>
-            Internes QS-Board · laufende Finanzbuchhaltung · Report je Mandat
+            Internes API-QS-Board · laufende Finanzbuchhaltung · Report je Mandat
           </span>
           <div className="trust-badges" aria-label="Kanzlei Hinweise">
             <span>Workspace Login</span>
@@ -493,22 +493,22 @@ function MandatsanalyseSection({
           <strong>Mandat aufrufen</strong>
           <p>
             Die Mitarbeitenden geben die Mandatsnummer ein und öffnen direkt
-            die berechtigte QS-Auswertung des Einzelmandats.
+            die berechtigte API-QS-Auswertung des Einzelmandats.
           </p>
         </article>
         <article>
           <span>02</span>
-          <strong>QS-Befunde prüfen</strong>
+          <strong>API-QS-Befunde prüfen</strong>
           <p>
-            Score, Ampelstatus, Auffälligkeiten, kritische Punkte und nicht
-            prüfbare QS-Punkte werden mandatsbezogen dargestellt.
+            API-Score, Ampelstatus, Auffälligkeiten, kritische Punkte und nicht
+            prüfbare API-QS-Punkte werden mandatsbezogen dargestellt.
           </p>
         </article>
         <article>
           <span>03</span>
           <strong>Report ziehen</strong>
           <p>
-            Die Detailseite enthält Management Summary, vollständige QS-Matrix
+            Die Detailseite enthält Management Summary, vollständige API-QS-Matrix
             und Exportfunktionen für den internen Report.
           </p>
         </article>
@@ -517,7 +517,7 @@ function MandatsanalyseSection({
       <div className="mandate-process" aria-label="Ablauf der Mandatsanalyse">
         {[
           "Mandatsnummer eingeben",
-          "QS-Auswertung öffnen",
+          "API-QS-Auswertung öffnen",
           "Befunde und Evidenz prüfen",
           "Report exportieren",
         ].map((step, index) => (
@@ -532,10 +532,10 @@ function MandatsanalyseSection({
         <div className="form-heading">
           <div>
             <p className="eyebrow">Einzelmandat</p>
-            <h3>QS-Auswertung und Report öffnen</h3>
+            <h3>API-QS-Auswertung und Report öffnen</h3>
           </div>
           <p>
-            Für die Detailseite werden Mandatsstammdaten, QS-Score, Matrix,
+            Für die Detailseite werden Mandatsstammdaten, API-QS-Score, Matrix,
             Handlungsempfehlungen und Exportansicht vorbereitet.
           </p>
         </div>
@@ -559,7 +559,7 @@ function MandatsanalyseSection({
               onClick={onOpenMandateAnalysis}
               disabled={isValidating}
             >
-              {isValidating ? "Prüfe Mandat" : "QS-Auswertung öffnen"}
+              {isValidating ? "Prüfe Mandat" : "API-QS-Auswertung öffnen"}
             </button>
           </div>
         </div>
@@ -573,7 +573,7 @@ function MandatsanalyseSection({
         <div className="form-advice">
           <strong>Reportfunktion</strong>
           <p>
-            Nach dem Öffnen der Auswertung kann der interne QS-Report über die
+            Nach dem Öffnen der Auswertung kann der interne API-QS-Report über die
             Mandatsdetailseite als druckfreundliche Ansicht oder Markdown
             exportiert werden.
           </p>
@@ -614,7 +614,7 @@ function RefreshStatus({
   if (isRefreshing) {
     return (
       <p className="refresh-note" role="status">
-        Refresh läuft. Daten werden geladen und QS-Regeln neu berechnet.
+        Refresh läuft. Daten werden geladen und API-QS-Regeln neu berechnet.
       </p>
     );
   }

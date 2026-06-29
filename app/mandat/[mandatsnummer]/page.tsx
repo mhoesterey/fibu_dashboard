@@ -53,7 +53,7 @@ export default async function MandateDetailPage({ params }: DetailPageProps) {
         </Link>
         <nav className="main-nav" aria-label="Detailnavigation">
           <Link href="/">Cockpit</Link>
-          <a href="#matrix">QS-Matrix</a>
+          <a href="#matrix">API-QS-Matrix</a>
           <a href="#empfehlungen">Empfehlungen</a>
           <a href="#export">Export</a>
         </nav>
@@ -73,7 +73,7 @@ export default async function MandateDetailPage({ params }: DetailPageProps) {
         </div>
         <div className={`detail-score traffic-light ${score.trafficLight}`}>
           <span>{score.score}</span>
-          <small>Gesamtscore</small>
+          <small>API-Gesamtscore</small>
         </div>
       </section>
 
@@ -99,14 +99,14 @@ export default async function MandateDetailPage({ params }: DetailPageProps) {
 
           <section className="score-panel" aria-labelledby="score-title">
             <p className="eyebrow">Score-Modul</p>
-            <h2 id="score-title">QS-Wertung</h2>
+            <h2 id="score-title">API-QS-Wertung</h2>
             <div className="score-grid">
               <ScoreMetric label="Gesamtscore" value={`${score.score}/100`} />
               <ScoreMetric label="Ampelstatus" value={score.trafficLight === "red" ? "rot" : score.trafficLight === "amber" ? "gelb" : "grün"} />
-              <ScoreMetric label="erfüllte QS" value={score.fulfilledCount} />
+              <ScoreMetric label="erfüllte API-QS" value={score.fulfilledCount} />
               <ScoreMetric label="Auffälligkeiten" value={score.warningCount} />
               <ScoreMetric label="kritische Punkte" value={score.criticalCount} />
-              <ScoreMetric label="nicht prüfbar" value={score.notCheckableCount} />
+              <ScoreMetric label="nicht prüfbare API-QS" value={score.notCheckableCount} />
             </div>
           </section>
         </div>
@@ -114,11 +114,11 @@ export default async function MandateDetailPage({ params }: DetailPageProps) {
         <section className="matrix-panel" id="matrix" aria-labelledby="matrix-title">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Vollständige QS-Matrix</p>
-              <h2 id="matrix-title">Alle QS-Punkte</h2>
+              <p className="eyebrow">Vollständige API-QS-Matrix</p>
+              <h2 id="matrix-title">Alle API-QS-Punkte</h2>
             </div>
           </div>
-          <div className="matrix-table" role="table" aria-label="Vollständige QS-Matrix">
+          <div className="matrix-table" role="table" aria-label="Vollständige API-QS-Matrix">
             <div className="matrix-head" role="row">
               <span>QS-ID</span>
               <span>Kategorie</span>

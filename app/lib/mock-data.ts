@@ -1,18 +1,14 @@
 import type { Client, QsCheck, QsResult, QsStatus, Severity } from "./types";
 
 export const qsCategories = [
-  "Mandanten-/Stammdaten und Besonderheiten",
-  "Beleg- und Datenzugang",
-  "Vorbereitung und Datenübernahme",
-  "Buchungsqualität",
-  "OPOS, Verrechnung und unklare Posten",
-  "Umsatzsteuer / ZM / OSS",
-  "Anlagenbuchführung",
-  "Zahlungsdaten / Bank / PayPal / Amazon / Kreditkarten",
-  "Sonderthemen wie Kasse, §37b, Bewirtung, Pkw, KSK",
-  "Kontrollarbeiten / Freigabe",
-  "Periodenabschluss / Festschreibung / Auswertung",
-  "Auftragspflege / Bearbeitungsstand",
+  "API-Grundgesamtheit und Stammdaten",
+  "Rechnungswesenbestand und Periodenstand",
+  "Buchungsbestand und Festschreibung",
+  "Buchungssatzqualitaet",
+  "OPOS und offene Posten",
+  "Summen, Salden und Konten",
+  "Umsatzsteuer-Indikatoren",
+  "Datenabdeckung Accounting",
 ];
 
 export const clients: Client[] = [
@@ -22,8 +18,8 @@ export const clients: Client[] = [
     mandantenname: "Muster GmbH",
     zeitraum: "Mai 2026",
     verantwortlicherMitarbeiter: "S. Neumann",
-    datenstand: "29.06.2026, 21:45",
-    qsRegelversion: "QS-FiBu-2026.06",
+    datenstand: "2026-06-29 - festgeschriebene Buchungssequenz",
+    qsRegelversion: "QS-FiBu-API-2026.06",
     authorizedUsers: ["owner@hsp.local", "admin@hsp.local"],
   },
   {
@@ -32,8 +28,8 @@ export const clients: Client[] = [
     mandantenname: "Bergmann Handel KG",
     zeitraum: "Mai 2026",
     verantwortlicherMitarbeiter: "M. Ayhan",
-    datenstand: "29.06.2026, 20:10",
-    qsRegelversion: "QS-FiBu-2026.06",
+    datenstand: "2026-06-27 - verarbeitete Buchungssequenz",
+    qsRegelversion: "QS-FiBu-API-2026.06",
     authorizedUsers: ["owner@hsp.local"],
   },
   {
@@ -42,8 +38,8 @@ export const clients: Client[] = [
     mandantenname: "Praxis am Markt PartG",
     zeitraum: "Mai 2026",
     verantwortlicherMitarbeiter: "L. Weber",
-    datenstand: "28.06.2026, 18:30",
-    qsRegelversion: "QS-FiBu-2026.06",
+    datenstand: "2026-06-28 - festgeschriebene Buchungssequenz",
+    qsRegelversion: "QS-FiBu-API-2026.06",
     authorizedUsers: ["owner@hsp.local", "restricted@hsp.local"],
   },
   {
@@ -51,111 +47,82 @@ export const clients: Client[] = [
     mandatsnummer: "10208",
     mandantenname: "Koch Immobilien GmbH & Co. KG",
     zeitraum: "Mai 2026",
-    verantwortlicherMitarbeiter: "A. Krüger",
-    datenstand: "29.06.2026, 19:05",
-    qsRegelversion: "QS-FiBu-2026.06",
+    verantwortlicherMitarbeiter: "A. Krueger",
+    datenstand: "2026-06-29 - Wirtschaftsjahr vorhanden",
+    qsRegelversion: "QS-FiBu-API-2026.06",
     authorizedUsers: ["owner@hsp.local"],
   },
 ];
 
 export const qsChecks: QsCheck[] = [
-  check("QS-001", qsCategories[0], "Mandantenstammdaten sind aktuell", "P2", 10),
-  check("QS-002", qsCategories[0], "Besonderheiten sind dokumentiert", "P2", 20),
-  check("QS-010", qsCategories[1], "Belegzugang ist vollständig", "P1", 30),
-  check("QS-011", qsCategories[1], "Datenzugänge sind erreichbar", "P1", 40),
-  check("QS-020", qsCategories[2], "Vormonatswerte wurden übernommen", "P2", 50),
-  check("QS-021", qsCategories[2], "Importprotokolle sind plausibel", "P1", 60),
-  check("QS-030", qsCategories[3], "Buchungstexte und Kontierung sind plausibel", "P1", 70),
-  check("QS-031", qsCategories[3], "Ungewöhnliche Buchungsbeträge sind geprüft", "P2", 80),
-  check("QS-040", qsCategories[4], "OPOS-Salden sind abgestimmt", "P1", 90),
-  check("QS-041", qsCategories[4], "Verrechnungskonten sind bereinigt", "P1", 100),
-  check("QS-050", qsCategories[5], "Umsatzsteuer-Voranmeldung ist plausibel", "P0", 110),
-  check("QS-051", qsCategories[5], "ZM/OSS-Relevanz ist bewertet", "P1", 120),
-  check("QS-060", qsCategories[6], "Anlagenzugänge sind geprüft", "P2", 130),
-  check("QS-070", qsCategories[7], "Bank- und Zahlungsdaten sind vollständig", "P1", 140),
-  check("QS-080", qsCategories[8], "Sonderthemen sind gekennzeichnet", "P1", 150),
-  check("QS-090", qsCategories[9], "Vier-Augen-Freigabe ist dokumentiert", "P1", 160),
-  check("QS-100", qsCategories[10], "Periode ist festschreibungsbereit", "P0", 170),
-  check("QS-110", qsCategories[11], "Bearbeitungsstand im Auftrag ist aktuell", "P2", 180),
+  check("API-001", qsCategories[0], "Mandat ist aktives FiBu-Accounting-Mandat", "P0", 10),
+  check("API-010", qsCategories[1], "Rechnungswesen-Wirtschaftsjahr ist abrufbar", "P0", 20),
+  check("API-011", qsCategories[1], "Wirtschaftsjahr enthaelt steuerliche Steuerungsfelder", "P2", 30),
+  check("API-020", qsCategories[2], "Letzter Buchungsbestand ist ermittelbar", "P1", 40),
+  check("API-021", qsCategories[2], "Letzte Buchungssequenz ist festgeschrieben", "P0", 50),
+  check("API-030", qsCategories[3], "Buchungssaetze sind auswertbar", "P1", 60),
+  check("API-031", qsCategories[3], "Buchungssaetze enthalten Belegfeld und Buchungstext", "P1", 70),
+  check("API-032", qsCategories[3], "Buchungssaetze enthalten Konto und Gegenkonto", "P1", 80),
+  check("API-040", qsCategories[4], "OPOS-Daten sind auswertbar", "P1", 90),
+  check("API-041", qsCategories[4], "Ueberfaellige offene Posten sind begrenzt", "P1", 100),
+  check("API-050", qsCategories[5], "Summen- und Saldenwerte sind auswertbar", "P1", 110),
+  check("API-051", qsCategories[5], "Sachkonten mit Bewegungen sind erkennbar", "P2", 120),
+  check("API-060", qsCategories[6], "Steuerindikatoren in Buchungen sind auswertbar", "P1", 130),
+  check("API-070", qsCategories[7], "Accounting-Statistiken sind verfuegbar", "P2", 140),
 ];
 
-export const qsResults: QsResult[] = [
-  result("10001", "QS-001", "fulfilled", "P2", "Stammdatenabgleich ohne Abweichung.", "Master-Data-Check 29.06.2026", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-002", "fulfilled", "P2", "Besonderheiten sind gepflegt.", "QS-Notiz vorhanden", "Bei Änderungen aktualisieren.", "Mandatsverantwortung", null),
-  result("10001", "QS-010", "warning", "P1", "Drei Eingangsbelege nach Periodenende fehlen.", "Belegliste UO: 3 offene Uploads", "Mandant um Nachreichung bitten.", "Sachbearbeitung", "2026-07-02"),
-  result("10001", "QS-011", "fulfilled", "P1", "Alle Datenzugänge erreichbar.", "Bank, PayPal, UO erfolgreich geprüft", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-020", "fulfilled", "P2", "Vormonatswerte übernommen.", "Saldenvortrag stimmt", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-021", "fulfilled", "P1", "Importprotokolle ohne Fehler.", "EXTF-Import 0 Fehler", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-030", "warning", "P1", "Mehrere Buchungstexte sind generisch.", "12 Buchungen mit Text 'divers'", "Buchungstexte nacharbeiten.", "Sachbearbeitung", "2026-07-03"),
-  result("10001", "QS-031", "fulfilled", "P2", "Ausreißer wurden geprüft.", "Prüfliste Betragsausreißer signiert", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-040", "fulfilled", "P1", "OPOS-Abstimmung plausibel.", "Debitoren/Kreditoren Saldenliste", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-041", "fulfilled", "P1", "Verrechnungskonten bereinigt.", "Konto 1590 ohne Altposten", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-050", "fulfilled", "P0", "UStVA-Prüfung ohne kritische Abweichung.", "USt-Kontrollsumme 0,00 Differenz", "Keine Aktion erforderlich.", "Steuerfachliche Prüfung", null),
-  result("10001", "QS-051", "not_applicable", "P1", "Keine ZM-/OSS-relevanten Umsätze erkannt.", "Keine EU-Auslandserlöse im Zeitraum", "Entfällt dokumentieren.", "Sachbearbeitung", null),
-  result("10001", "QS-060", "fulfilled", "P2", "Keine ungeklärten Anlagenzugänge.", "Anlagenliste ohne offene Zugänge", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-070", "fulfilled", "P1", "Bankdaten vollständig.", "Bankumsätze bis 31.05.2026", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10001", "QS-080", "not_checkable", "P1", "Bewirtungsbelege nicht maschinell auswertbar.", "Belegbilder ohne strukturierte Kategorie", "Manuelle Stichprobe durchführen.", "Sachbearbeitung", "2026-07-04"),
-  result("10001", "QS-090", "fulfilled", "P1", "Freigabe dokumentiert.", "Review-Vermerk vorhanden", "Keine Aktion erforderlich.", "Teamleitung", null),
-  result("10001", "QS-100", "warning", "P0", "Festschreibung ist vorbereitet, aber Rückfrage offen.", "Offene Rückfrage zu Beleg 2026-05-184", "Rückfrage klären, dann festschreiben.", "Teamleitung", "2026-07-05"),
-  result("10001", "QS-110", "fulfilled", "P2", "Auftragspflege aktuell.", "Bearbeitungsstand 85 Prozent", "Keine Aktion erforderlich.", "Auftragssteuerung", null),
+type MockOverride = Partial<
+  Pick<QsResult, "status" | "finding" | "evidence" | "recommendation" | "dueDate">
+>;
 
-  result("10024", "QS-001", "fulfilled", "P2", "Stammdaten aktuell.", "Master-Data-Check 29.06.2026", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10024", "QS-002", "warning", "P2", "Neue Filiale ist noch nicht in Besonderheiten vermerkt.", "Mandantenhinweis vom 24.06.2026", "Besonderheiten ergänzen.", "Mandatsverantwortung", "2026-07-01"),
-  result("10024", "QS-010", "critical", "P1", "Belegzugang für Amazon fehlt.", "Amazon-Import seit 17.05.2026 ohne Daten", "Zugang erneuern und fehlende Daten abrufen.", "Sachbearbeitung", "2026-06-30"),
-  result("10024", "QS-011", "critical", "P1", "PayPal-Verbindung liefert Fehler 403.", "Connector-Log: fehlende Berechtigung", "Berechtigung mit Mandant klären.", "Sachbearbeitung", "2026-06-30"),
-  result("10024", "QS-020", "fulfilled", "P2", "Vormonatswerte übernommen.", "Saldenvortrag geprüft", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10024", "QS-021", "warning", "P1", "Importprotokoll enthält Dublettenhinweis.", "2 potenzielle Dubletten", "Dubletten prüfen.", "Sachbearbeitung", "2026-07-02"),
-  result("10024", "QS-030", "warning", "P1", "Kontierung bei Wareneinsatz uneinheitlich.", "7 Buchungen auf abweichenden Konten", "Kontierungslogik prüfen.", "Sachbearbeitung", "2026-07-03"),
-  result("10024", "QS-031", "fulfilled", "P2", "Betragsausreißer plausibilisiert.", "Ausreißerprotokoll vorhanden", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10024", "QS-040", "critical", "P1", "OPOS weist Altposten über 90 Tage aus.", "9 Kreditorenposten älter als 90 Tage", "Altposten mit Mandant klären.", "FiBu-Team", "2026-07-05"),
-  result("10024", "QS-041", "warning", "P1", "Verrechnungskonto enthält ungeklärten Saldo.", "Konto 1360: 1.840,00 EUR", "Umbuchung oder Klärung dokumentieren.", "FiBu-Team", "2026-07-05"),
-  result("10024", "QS-050", "critical", "P0", "USt-Kontrollsumme weicht erheblich ab.", "Differenz 4.260,00 EUR", "USt-relevante Buchungen vor Abgabe prüfen.", "Steuerfachliche Prüfung", "2026-06-30"),
-  result("10024", "QS-051", "warning", "P1", "ZM-Relevanz ist wahrscheinlich, aber nicht abschließend belegt.", "EU-Kundenerlöse ohne USt-ID-Abgleich", "USt-ID-Abgleich durchführen.", "Steuerfachliche Prüfung", "2026-07-01"),
-  result("10024", "QS-060", "not_checkable", "P2", "Anlagenliste nicht importiert.", "Kein Anlagen-Datenstand verfügbar", "Anlagenbuchführung manuell prüfen.", "Sachbearbeitung", "2026-07-04"),
-  result("10024", "QS-070", "critical", "P1", "Bankumsätze enden vor Periodenende.", "Letzter Umsatz 27.05.2026", "Bankabruf aktualisieren.", "FiBu-Team", "2026-06-30"),
-  result("10024", "QS-080", "warning", "P1", "Bewirtung und Pkw-Kosten ohne vollständige Belege.", "5 Belege ohne Pflichtangaben", "Belege nachfordern.", "Sachbearbeitung", "2026-07-04"),
-  result("10024", "QS-090", "not_checkable", "P1", "Freigabe nicht prüfbar, weil Review-Vermerk fehlt.", "Kein digitaler Freigabevermerk", "Review nachholen.", "Teamleitung", "2026-07-05"),
-  result("10024", "QS-100", "critical", "P0", "Periode ist nicht festschreibungsbereit.", "P0-USt-Befund und fehlende Bankdaten", "Keine Festschreibung vor Klärung.", "Teamleitung", "2026-06-30"),
-  result("10024", "QS-110", "warning", "P2", "Bearbeitungsstand im Auftrag ist veraltet.", "Status zuletzt am 20.06.2026 gepflegt", "Auftrag aktualisieren.", "Auftragssteuerung", "2026-07-01"),
+const mockOverrides: Record<string, Record<string, MockOverride>> = {
+  "10024": {
+    "API-021": {
+      status: "warning",
+      finding: "Letzte Buchungssequenz ist verarbeitet, aber nicht festgeschrieben.",
+      evidence: "Mock-Sequenz is_committed=false.",
+      recommendation: "Festschreibung im Rechnungswesen pruefen.",
+      dueDate: "2026-07-03",
+    },
+    "API-031": {
+      status: "warning",
+      finding: "Mehrere Buchungen enthalten kein belastbares Belegfeld oder keinen Buchungstext.",
+      evidence: "Mock-Stichprobe: 9 von 80 Buchungen auffaellig.",
+      recommendation: "Buchungstexte und Belegfelder nacharbeiten.",
+      dueDate: "2026-07-04",
+    },
+    "API-041": {
+      status: "warning",
+      finding: "Ueberfaellige OPOS-Posten liegen ueber der internen Schwelle.",
+      evidence: "Mock-OPOS: 7 offene Posten ueber 30 Tage.",
+      recommendation: "OPOS-Liste klaeren und Faelligkeiten abstimmen.",
+      dueDate: "2026-07-05",
+    },
+  },
+  "10208": {
+    "API-020": {
+      status: "not_checkable",
+      finding: "Kein verarbeiteter Buchungsbestand in der Stichprobe vorhanden.",
+      evidence: "Mock-Daten liefern nur Wirtschaftsjahr, keine Sequenz.",
+      recommendation: "Buchungssequenz oder Schnittstellenberechtigung pruefen.",
+      dueDate: "2026-07-05",
+    },
+    "API-021": {
+      status: "not_checkable",
+      finding: "Festschreibung kann ohne Buchungssequenz nicht beurteilt werden.",
+      evidence: "Mock-Daten liefern keinen Sequenzstatus.",
+      recommendation: "Sequenzdaten nachladen.",
+      dueDate: "2026-07-05",
+    },
+  },
+};
 
-  result("10117", "QS-001", "fulfilled", "P2", "Stammdaten aktuell.", "Master-Data-Check 28.06.2026", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10117", "QS-002", "fulfilled", "P2", "Besonderheiten dokumentiert.", "Ärztliche Leistungen als Besonderheit gepflegt", "Keine Aktion erforderlich.", "Mandatsverantwortung", null),
-  result("10117", "QS-010", "fulfilled", "P1", "Belegzugang vollständig.", "UO-Upload vollständig", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10117", "QS-011", "fulfilled", "P1", "Datenzugänge erreichbar.", "Bank und Kasse erreichbar", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10117", "QS-020", "fulfilled", "P2", "Vormonatswerte übernommen.", "Saldenvortrag stimmt", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10117", "QS-021", "fulfilled", "P1", "Importprotokolle plausibel.", "0 Importfehler", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10117", "QS-030", "fulfilled", "P1", "Kontierung plausibel.", "Stichprobe ohne Beanstandung", "Keine Aktion erforderlich.", "Sachbearbeitung", null),
-  result("10117", "QS-031", "warning", "P2", "Ein Ausreißer bei Fremdleistungen offen.", "Buchung 2.940,00 EUR", "Belegbezug prüfen.", "Sachbearbeitung", "2026-07-03"),
-  result("10117", "QS-040", "not_applicable", "P1", "Keine OPOS-Führung vereinbart.", "Auftrag ohne OPOS-Modul", "Entfällt dokumentieren.", "Mandatsverantwortung", null),
-  result("10117", "QS-041", "fulfilled", "P1", "Verrechnungskonten ohne offene Salden.", "Kontrollliste leer", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10117", "QS-050", "fulfilled", "P0", "UStVA plausibel.", "USt-Kontrollsumme 0,00 Differenz", "Keine Aktion erforderlich.", "Steuerfachliche Prüfung", null),
-  result("10117", "QS-051", "not_applicable", "P1", "Keine ZM-/OSS-Relevanz.", "Keine meldepflichtigen Sachverhalte", "Entfällt dokumentieren.", "Steuerfachliche Prüfung", null),
-  result("10117", "QS-060", "fulfilled", "P2", "Anlagenzugänge geprüft.", "Ein Zugang mit Beleg und Nutzungsdauer", "Keine Aktion erforderlich.", "Sachbearbeitung", null),
-  result("10117", "QS-070", "fulfilled", "P1", "Bankdaten vollständig.", "Bankumsätze bis 31.05.2026", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10117", "QS-080", "warning", "P1", "Kasse wurde noch nicht gegengezeichnet.", "Kassenbericht ohne digitale Freigabe", "Kassenfreigabe nachholen.", "Mandatsverantwortung", "2026-07-02"),
-  result("10117", "QS-090", "fulfilled", "P1", "Vier-Augen-Freigabe dokumentiert.", "Review-Vermerk vorhanden", "Keine Aktion erforderlich.", "Teamleitung", null),
-  result("10117", "QS-100", "fulfilled", "P0", "Periode festschreibungsbereit.", "Keine P0- oder P1-Blocker", "Festschreibung nach finaler Freigabe.", "Teamleitung", null),
-  result("10117", "QS-110", "fulfilled", "P2", "Auftragspflege aktuell.", "Status am 28.06.2026 aktualisiert", "Keine Aktion erforderlich.", "Auftragssteuerung", null),
-
-  result("10208", "QS-001", "fulfilled", "P2", "Stammdaten aktuell.", "Master-Data-Check 29.06.2026", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10208", "QS-002", "warning", "P2", "Objektliste wurde noch nicht aktualisiert.", "Neue Objektkostenstelle fehlt", "Objektliste ergänzen.", "Mandatsverantwortung", "2026-07-02"),
-  result("10208", "QS-010", "fulfilled", "P1", "Belegzugang vollständig.", "UO-Upload vollständig", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10208", "QS-011", "fulfilled", "P1", "Datenzugänge erreichbar.", "Bankdaten erreichbar", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10208", "QS-020", "fulfilled", "P2", "Vormonatswerte übernommen.", "Saldenvortrag stimmt", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10208", "QS-021", "fulfilled", "P1", "Importprotokolle plausibel.", "Keine Importfehler", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10208", "QS-030", "warning", "P1", "Nebenkostenbuchungen sind teilweise unscharf kontiert.", "8 Buchungen auf Sammelkonto", "Kostenstellenbezug nacharbeiten.", "Sachbearbeitung", "2026-07-03"),
-  result("10208", "QS-031", "fulfilled", "P2", "Ausreißer geprüft.", "Keine ungeklärten Beträge", "Keine Aktion erforderlich.", "Sachbearbeitung", null),
-  result("10208", "QS-040", "warning", "P1", "Mieterkonten enthalten offene Umbuchungen.", "3 offene Posten", "Umbuchungen klären.", "FiBu-Team", "2026-07-05"),
-  result("10208", "QS-041", "fulfilled", "P1", "Verrechnungskonten bereinigt.", "Keine Altposten", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10208", "QS-050", "fulfilled", "P0", "USt-Prüfung plausibel.", "Optionierte Umsätze abgestimmt", "Keine Aktion erforderlich.", "Steuerfachliche Prüfung", null),
-  result("10208", "QS-051", "not_applicable", "P1", "Keine ZM-/OSS-Relevanz.", "Keine grenzüberschreitenden Umsätze", "Entfällt dokumentieren.", "Steuerfachliche Prüfung", null),
-  result("10208", "QS-060", "warning", "P2", "Modernisierungskosten müssen aktiviert oder Aufwand zugeordnet werden.", "2 Belege mit Investitionshinweis", "Sachverhalt steuerlich bewerten.", "Steuerfachliche Prüfung", "2026-07-06"),
-  result("10208", "QS-070", "fulfilled", "P1", "Bankdaten vollständig.", "Bankumsätze bis Periodenende", "Keine Aktion erforderlich.", "FiBu-Team", null),
-  result("10208", "QS-080", "not_checkable", "P1", "Pkw-/Bewirtungsthemen nicht automatisiert erkennbar.", "Keine strukturierte Kategorie im Belegexport", "Manuelle Prüfung dokumentieren.", "Sachbearbeitung", "2026-07-04"),
-  result("10208", "QS-090", "fulfilled", "P1", "Vier-Augen-Freigabe dokumentiert.", "Review-Vermerk vorhanden", "Keine Aktion erforderlich.", "Teamleitung", null),
-  result("10208", "QS-100", "warning", "P0", "Festschreibung wartet auf fachliche Bewertung.", "Offener Anlagen-Sachverhalt", "Nach Bewertung freigeben.", "Teamleitung", "2026-07-06"),
-  result("10208", "QS-110", "fulfilled", "P2", "Bearbeitungsstand aktuell.", "Status am 29.06.2026 aktualisiert", "Keine Aktion erforderlich.", "Auftragssteuerung", null),
-];
+export const qsResults: QsResult[] = clients.flatMap((client) =>
+  qsChecks.map((check) => {
+    const override = mockOverrides[client.mandatsnummer]?.[check.id];
+    return result(client, check, override);
+  }),
+);
 
 function check(
   id: string,
@@ -168,30 +135,46 @@ function check(
 }
 
 function result(
-  clientNumber: string,
-  checkId: string,
-  status: QsStatus,
-  severity: Severity,
-  finding: string,
-  evidence: string,
-  recommendation: string,
-  ownerRole: string,
-  dueDate: string | null,
+  client: Client,
+  check: QsCheck,
+  override: MockOverride | undefined,
 ): QsResult {
-  const client = clients.find((entry) => entry.mandatsnummer === clientNumber);
-  if (!client) throw new Error(`Unknown mock client ${clientNumber}`);
-
   return {
-    id: `${client.id}-${checkId}`,
+    id: `${client.id}-${check.id}`,
     clientId: client.id,
-    checkId,
-    status,
-    severity,
-    finding,
-    evidence,
-    recommendation,
-    ownerRole,
-    dueDate,
+    checkId: check.id,
+    status: override?.status ?? defaultStatus(),
+    severity: check.defaultSeverity,
+    finding: override?.finding ?? defaultFinding(check.id),
+    evidence: override?.evidence ?? defaultEvidence(check.id),
+    recommendation: override?.recommendation ?? "Keine Aktion erforderlich.",
+    ownerRole: defaultOwnerRole(check.id),
+    dueDate: override?.dueDate ?? null,
     calculatedAt: "2026-06-29T19:45:00.000Z",
   };
+}
+
+function defaultStatus(): QsStatus {
+  return "fulfilled";
+}
+
+function defaultFinding(checkId: string) {
+  if (checkId.startsWith("API-03")) return "Buchungssatz-Stichprobe ist API-seitig auswertbar.";
+  if (checkId.startsWith("API-04")) return "OPOS-Stichprobe ist API-seitig auswertbar.";
+  if (checkId.startsWith("API-05")) return "Summen, Salden und Sachkonten sind API-seitig auswertbar.";
+  return "API-Evidenz liegt vor.";
+}
+
+function defaultEvidence(checkId: string) {
+  if (checkId === "API-001") return "Accounting-Client vorhanden und Stammdatenstatus aktiv.";
+  if (checkId === "API-010") return "Wirtschaftsjahr aus DATEVconnect Accounting abrufbar.";
+  if (checkId === "API-021") return "Letzte Buchungssequenz ist als festgeschrieben markiert.";
+  return "Mock-Evidenz aus API-faehigem QS-Katalog.";
+}
+
+function defaultOwnerRole(checkId: string) {
+  if (checkId.startsWith("API-04")) return "FiBu-Team / OPOS";
+  if (checkId.startsWith("API-06")) return "Steuerfachliche Pruefung";
+  if (checkId.startsWith("API-02")) return "Teamleitung FiBu";
+  return "FiBu-Team";
 }
